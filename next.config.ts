@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // NOT standalone — we use `next start` instead (works with bun runtime)
+  // standalone needs node binary which Nixpacks doesn't provide at runtime
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -9,16 +10,11 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   reactStrictMode: false,
-  // Minimize build memory:
-  // - Disable Turbopack (needs worker_threads, Bun doesn't support)
-  // - Disable worker threads (use single-threaded build)
-  // - Disable source maps (less memory)
   experimental: {
     workerThreads: false,
     cpus: 1,
   },
   productionBrowserSourceMaps: false,
-  // Don't optimize images at build time (sharp is heavy)
   images: {
     unoptimized: true,
   },

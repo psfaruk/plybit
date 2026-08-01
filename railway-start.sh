@@ -1,6 +1,8 @@
 #!/bin/bash
-# railway-start.sh — Railway runtime startup (build already done by Nixpacks)
-# Starts BOTH Next.js + mini-service
+# railway-start.sh — Railway runtime startup
+# Build already done by Nixpacks. This starts both services.
+# Uses `next start` (NOT standalone server.js — that needs node binary which
+# Nixpacks doesn't install at runtime, only bun is available)
 
 set -e
 
@@ -28,9 +30,11 @@ setsid nohup bun --env-file=/app/.env index.ts > /tmp/mini-service.log 2>&1 < /d
 echo "[railway] Mini-service PID: $!"
 
 # Wait for mini-service
-sleep 5
+sleep 3
 
 # ── Start Next.js (foreground) ──
-echo "=== [railway] Starting Next.js (port ${PORT:-3000}) ==="
+# Use `bun run start` which calls `next start` — works with bun runtime
+# Railway sets PORT env var (usually 8080)
+echo "=== [railway] Starting Next.js (port ${PORT:-8080}) ==="
 cd /app
-exec node .next/standalone/server.js
+exec bunx next start -p ${PORT:-8080}

@@ -1,11 +1,10 @@
 # Nixpacks config — Railway uses this to build the app
-# Optimized for LOW memory usage (~256MB build, ~128MB runtime)
+# Optimized for LOW memory + Bun runtime (no node needed at runtime)
 
 [phases.setup]
 nixPkgs = ["nodejs_20", "bun"]
 
 [phases.install]
-# Install only production deps for smaller node_modules
 cmds = [
   "bun install",
   "cd mini-services/otc-engine && bun install && cd ../..",
@@ -13,14 +12,12 @@ cmds = [
 ]
 
 [phases.build]
-# Use Node.js with strict memory limit + single worker
-# --no-turbo: use webpack (Bun doesn't support Turbopack worker_threads)
-# NEXT_PRIVATE_LOCAL_WEBPACK_WORKER=0: disable webpack workers entirely
-# --max-old-space-size=512: limit Node to 512MB
+# Build with Node.js (Bun doesn't support Turbopack worker_threads)
+# Then verify the build output exists
 cmds = [
   "NEXT_TELEMETRY_DISABLED=1 NEXT_PRIVATE_LOCAL_WEBPACK_WORKER=0 NODE_OPTIONS='--max-old-space-size=512' npx next build --no-turbo",
-  "cp -r .next/static .next/standalone/.next/ 2>/dev/null || true",
-  "cp -r public .next/standalone/ 2>/dev/null || true"
+  "ls -la .next/ || echo 'WARNING: .next directory missing!'",
+  "ls -la .next/standalone/ 2>/dev/null || echo 'NOTE: standalone not created (using next start instead)'"
 ]
 
 [start]
