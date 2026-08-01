@@ -1,15 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // NOT standalone — we use `next start` instead (works with bun runtime)
-  // standalone needs node binary which Nixpacks doesn't provide at runtime
+  output: "standalone",
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   reactStrictMode: false,
+  // Minimize build memory
   experimental: {
     workerThreads: false,
     cpus: 1,
