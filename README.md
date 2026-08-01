@@ -103,3 +103,9 @@ bun run dev
 ## License
 
 Private — All rights reserved.
+
+## Deploy Status
+
+- Last build fix: 2026-08-01T17:59:58Z
+- Commit: 689fd67
+- Status: Multi-stage Dockerfile (Node.js build + Bun runtime)
