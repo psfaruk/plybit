@@ -1,0 +1,20 @@
+# Nixpacks config (alternative to Dockerfile — Railway auto-detects)
+# This is used if Railway doesn't find a Dockerfile
+
+[phases.setup]
+nixPkgs = ["bun", "python3"]
+
+[phases.install]
+cmds = [
+  "bun install",
+  "cd mini-services/otc-engine && bun install && cd ../..",
+  "bunx prisma generate"
+]
+
+[phases.build]
+cmds = [
+  "bun run build"
+]
+
+[start]
+cmd = "bash railway-start.sh"

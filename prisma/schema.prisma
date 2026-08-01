@@ -1,0 +1,93 @@
+// OTC Binary Signals App — Prisma Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model SignalLog {
+  id           String   @id @default(cuid())
+  timestamp    Int      // unix seconds
+  pair         String   // e.g. "EURUSD-OTC"
+  timeframe    Int      @default(60) // seconds
+  signal       String   // CALL | PUT | NEUTRAL
+  entryPrice   Float?
+  strength     Float    @default(0)
+  expiry       Int      @default(300) // seconds
+  result       String   @default("PENDING") // WIN | LOSS | PENDING | TIMEOUT
+  resultPrice  Float?
+  modulesVotes String   // JSON string of votes
+  createdAt    DateTime @default(now())
+
+  @@index([pair, timestamp])
+  @@index([result])
+}
+
+model CandleData {
+  id        String   @id @default(cuid())
+  pair      String
+  timeframe Int
+  openTime  Int
+  open      Float
+  high      Float
+  low       Float
+  close     Float
+  volume    Float    @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([pair, timeframe, openTime])
+  @@index([pair, openTime])
+}
+
+model Performance {
+  id            String   @id @default(cuid())
+  pair          String
+  date          String   // YYYY-MM-DD
+  totalSignals  Int      @default(0)
+  winCount      Int      @default(0)
+  lossCount     Int      @default(0)
+  winRate       Float    @default(0)
+  createdAt     DateTime @default(now())
+
+  @@unique([pair, date])
+}
+
+model AlgorithmDetection {
+  id              String   @id @default(cuid())
+  pair            String
+  detectedAt      Int
+  algorithm       String
+  prevAlgorithm   String?
+  confidence      Float    @default(0)
+  evidence        String
+  atr             Float
+  slope           Float
+  bodyRatio       Float
+  rangeRatio      Float
+  streak          Int
+  transitionNote  String?
+  createdAt       DateTime @default(now())
+
+  @@index([pair, detectedAt])
+  @@index([algorithm])
+}
+
+model AgentAction {
+  id            String   @id @default(cuid())
+  timestamp     Int
+  actionType    String
+  scope         String
+  summary       String
+  details       String
+  severity      String   @default("info")
+  autoApplied   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([scope])
+  @@index([actionType])
+}

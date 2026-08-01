@@ -1,0 +1,79 @@
+# Dependencies
+node_modules/
+mini-services/otc-engine/node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Production
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment files (CONTAIN SECRETS — NEVER commit)
+.env
+.env.local
+.env.development
+.env.production
+.env.*.local
+
+# Database (contains signal history + candles)
+db/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Session files (contain Quotex tokens — NEVER commit)
+session.json
+mini-services/otc-engine/session.json
+.session.pkl
+
+# Logs
+*.log
+dev.log
+.zscripts/*.log
+tmp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Tool results
+tool-results/
+
+# Screenshots / downloads (not needed in repo)
+download/
+upload/
+
+# Skills (Z AI specific, not part of app)
+skills/
+
+# Z AI scripts (not needed on Railway)
+.zscripts/
+
+# Tests
+tests/
+
+# Examples
+examples/
+
+# Python cache
+__pycache__/
+*.pyc
+.venv/
+
+# Misc
+*.bak
+*.tmp
+.cache/

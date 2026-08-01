@@ -1,0 +1,21 @@
+{
+  "name": "otc-engine",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --hot --env-file=/home/z/my-project/.env index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/ws": "^8.18.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "socket.io": "^4.8.3",
+    "ws": "^8.21.1",
+    "z-ai-web-dev-sdk": "^0.0.18"
+  }
+}

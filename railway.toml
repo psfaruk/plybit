@@ -1,0 +1,14 @@
+# Railway deploy config
+# Docs: https://docs.railway.app/
+
+[deploy]
+# Start command (optional — Dockerfile CMD is used if not set)
+# startCommand = "/app/railway-start.sh"
+
+# Health check
+healthcheckPath = "/"
+healthcheckTimeout = 60
+
+[build]
+# Railway will auto-detect Dockerfile
+builder = "dockerfile"
