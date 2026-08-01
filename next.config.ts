@@ -6,15 +6,13 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
-  // Disable Turbopack for production builds — it needs worker_threads
-  // features that Bun doesn't fully support. Webpack works everywhere.
-  // Turbopack is still used in `next dev` (faster dev experience).
+  // Disable Turbopack for production builds — use webpack instead
+  // Turbopack needs worker_threads features that Bun doesn't support
   experimental: {
-    // Limit memory usage during build (important for Railway's 512MB-1GB)
     workerThreads: false,
     cpus: 1,
   },
-  // Reduce build memory by disabling some optimizations
+  // Reduce build memory
   productionBrowserSourceMaps: false,
 };
 

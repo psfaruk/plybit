@@ -1,14 +1,11 @@
-# Railway deploy config
-# Docs: https://docs.railway.app/
-
-[deploy]
-# Start command (optional — Dockerfile CMD is used if not set)
-# startCommand = "/app/railway-start.sh"
-
-# Health check
-healthcheckPath = "/"
-healthcheckTimeout = 60
+# Railway config — force Nixpacks (not Dockerfile) for faster builds
+# Dockerfile multi-stage takes too long; Nixpacks is optimized for Railway
 
 [build]
-# Railway will auto-detect Dockerfile
-builder = "dockerfile"
+builder = "nixpacks"
+
+[deploy]
+healthcheckPath = "/"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

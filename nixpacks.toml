@@ -1,10 +1,12 @@
-# Nixpacks config (alternative to Dockerfile — Railway auto-detects)
-# This is used if Railway doesn't find a Dockerfile
+# Nixpacks config — Railway uses this to build the app
+# Forces Node.js for the build step (Bun doesn't support Turbopack worker_threads)
 
 [phases.setup]
-nixPkgs = ["bun", "python3"]
+nixPkgs = ["nodejs_20", "bun"]
+aptPkgs = ["curl", "ca-certificates"]
 
 [phases.install]
+# Use bun for installing deps (faster), but build with node
 cmds = [
   "bun install",
   "cd mini-services/otc-engine && bun install && cd ../..",
@@ -12,9 +14,15 @@ cmds = [
 ]
 
 [phases.build]
+# CRITICAL: Use npx (Node.js) for next build, NOT bun
+# Bun doesn't support worker_threads.Worker stdout/stderr/resourceLimits
+# Also limit workers to 1 to avoid OOM (Railway has ~512MB-1GB)
 cmds = [
-  "bun run build"
+  "NEXT_PRIVATE_LOCAL_WEBPACK_WORKER=1 NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS='--max-old-space-size=1024' npx next build --no-turbo",
+  "cp -r .next/static .next/standalone/.next/ 2>/dev/null || true",
+  "cp -r public .next/standalone/ 2>/dev/null || true"
 ]
 
 [start]
+# Start script — runs both Next.js + mini-service
 cmd = "bash railway-start.sh"
