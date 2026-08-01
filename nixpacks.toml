@@ -1,8 +1,9 @@
 # Nixpacks config — Railway uses this to build the app
-# Build with Node.js (Next.js Turbopack needs worker_threads which Bun doesn't support)
+# Dockerfile deleted so Railway MUST use this
 
 [phases.setup]
 nixPkgs = ["nodejs_20", "bun"]
+aptPkgs = ["openssl", "ca-certificates", "curl"]
 
 [phases.install]
 cmds = [
@@ -12,8 +13,8 @@ cmds = [
 ]
 
 [phases.build]
-# Use Node.js (npx) for build — Turbopack works with Node but not Bun
-# Limit memory to 512MB to fit Railway's plan
+# Build with Node.js (npx) — Turbopack needs worker_threads which Bun lacks
+# Next.js 16.2.12 fixes the parseMaxPostponedStateSize bug
 cmds = [
   "NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS='--max-old-space-size=512' npx next build",
   "cp -r .next/static .next/standalone/.next/ 2>/dev/null || true",
@@ -21,5 +22,4 @@ cmds = [
 ]
 
 [start]
-# Use bun to run the standalone server (works without node at runtime)
 cmd = "bash railway-start.sh"
