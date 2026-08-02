@@ -2,10 +2,10 @@
 // Same schema as the Next.js Prisma models — both write to the same DB file.
 
 import { Database } from 'bun:sqlite';
-import path from 'path';
 import type { Candle, SignalResult } from './types';
+import { getDbPath } from './paths';
 
-const DB_PATH = process.env.OTC_DB_PATH || path.resolve(__dirname, '../../../db/custom.db');
+const DB_PATH = getDbPath();
 
 let _db: Database | null = null;
 function db(): Database {
@@ -53,11 +53,47 @@ function db(): Database {
         createdAt TEXT DEFAULT (datetime('now')),
         UNIQUE(pair, date)
       );
+
+      CREATE TABLE IF NOT EXISTS AlgorithmDetection (
+        id TEXT PRIMARY KEY,
+        pair TEXT NOT NULL,
+        detectedAt INTEGER NOT NULL,
+        algorithm TEXT NOT NULL,
+        prevAlgorithm TEXT,
+        confidence REAL DEFAULT 0,
+        evidence TEXT,
+        atr REAL,
+        slope REAL,
+        bodyRatio REAL,
+        rangeRatio REAL,
+        streak INTEGER,
+        transitionNote TEXT,
+        createdAt TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_algo_pair_ts ON AlgorithmDetection(pair, detectedAt);
+      CREATE INDEX IF NOT EXISTS idx_algo_algorithm ON AlgorithmDetection(algorithm);
+
+      CREATE TABLE IF NOT EXISTS AgentAction (
+        id TEXT PRIMARY KEY,
+        timestamp INTEGER NOT NULL,
+        actionType TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        summary TEXT,
+        details TEXT,
+        severity TEXT DEFAULT 'info',
+        autoApplied INTEGER DEFAULT 0,
+        createdAt TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_agent_ts ON AgentAction(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_agent_scope ON AgentAction(scope);
+      CREATE INDEX IF NOT EXISTS idx_agent_actionType ON AgentAction(actionType);
     `);
     console.log(`[db] Opened ${DB_PATH}`);
   }
   return _db!;
 }
+
+export { DB_PATH };
 
 export function insertSignal(s: {
   id: string;

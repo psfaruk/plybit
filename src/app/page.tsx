@@ -32,15 +32,15 @@ const SEVERITY_COLORS: Record<string, string> = {
 };
 
 export default function Home() {
-  const { connected, pairs, signals, ticks, stats, feedStatus, algorithms, agentActions } = useOtcEngine();
+  const { connected, pairs, signals, ticks, stats, feedStatus, algorithms, agentActions, refreshStats } = useOtcEngine();
   const [selectedPair, setSelectedPair] = useState<string | null>(null);
   const [tokenModalOpen, setTokenModalOpen] = useState(false);
 
-  // Auto-open token modal when feed disconnects
+  // Auto-open token modal when feed disconnects for more than 3s (avoids flicker)
   const isDisconnected = feedStatus?.mode === 'disconnected';
   useEffect(() => {
     if (isDisconnected) {
-      const t = setTimeout(() => setTokenModalOpen(true), 800);
+      const t = setTimeout(() => setTokenModalOpen(true), 3000);
       return () => clearTimeout(t);
     }
   }, [isDisconnected]);
@@ -337,7 +337,10 @@ export default function Home() {
       <TokenRefreshModal
         open={tokenModalOpen}
         onClose={() => setTokenModalOpen(false)}
-        onRefreshed={() => {}}
+        onRefreshed={() => {
+          // Refresh stats + give the engine time to reconnect before re-arming
+          refreshStats();
+        }}
       />
 
       {/* Footer */}

@@ -13,8 +13,9 @@
 import ZAI from 'z-ai-web-dev-sdk';
 import { Database } from 'bun:sqlite';
 import { randomUUID } from 'crypto';
+import { getDbPath } from './paths';
 
-const DB_PATH = '/home/z/my-project/db/custom.db';
+const DB_PATH = getDbPath();
 const ANALYSIS_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 let zaiInstance: any = null;

@@ -10,8 +10,9 @@
 //   - Polls .env for token changes every 10 seconds + auto-reconnects
 
 import { QuotexOTCClient, buildClientFromEnv, type LiveFeedStatus } from './live-feed';
-import { readFileSync } from 'fs';
 import type { Candle, Tick } from './types';
+import { readEnvKey, getEnvFilePath } from './paths';
+import { readFileSync } from 'fs';
 
 export type FeedMode = 'live' | 'disconnected';
 
@@ -43,7 +44,7 @@ function startTokenPoller(onNewToken: (token: string) => void): NodeJS.Timeout {
   const timer = setInterval(() => {
     const current = readEnvToken();
     if (current && current !== lastToken && current.length >= 10) {
-      console.log(`[feed-poller] 🔄 new token detected in .env (${current.slice(0, 8)}…)`);
+      console.log(`[feed-poller] 🔄 new token detected in .env (${current.slice(0, 8)}…) at ${getEnvFilePath()}`);
       lastToken = current;
       onNewToken(current);
     }
@@ -53,13 +54,7 @@ function startTokenPoller(onNewToken: (token: string) => void): NodeJS.Timeout {
 }
 
 function readEnvToken(): string {
-  try {
-    const content = readFileSync('/home/z/my-project/.env', 'utf8');
-    const m = content.match(/^QX_TOKEN=(.+)$/m);
-    return m ? m[1].trim() : '';
-  } catch {
-    return '';
-  }
+  return readEnvKey('QX_TOKEN');
 }
 
 export async function createFeed(): Promise<UnifiedFeed> {
@@ -181,12 +176,7 @@ class DisconnectedAdapter implements UnifiedFeed {
 
   private async tryReconnect(token: string): Promise<void> {
     try {
-      let cookies = '';
-      try {
-        const envContent = readFileSync('/home/z/my-project/.env', 'utf8');
-        const m = envContent.match(/^QX_COOKIES=(.+)$/m);
-        if (m) cookies = m[1].trim();
-      } catch {}
+      const cookies = readEnvKey('QX_COOKIES');
 
       if (!cookies) {
         console.log('[feed] no QX_COOKIES in .env — using empty cookies (may fail)');

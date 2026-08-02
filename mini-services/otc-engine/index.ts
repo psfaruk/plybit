@@ -14,21 +14,21 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { createFeed, type UnifiedFeed, type FeedStatus } from './src/feed-factory';
 import { predict as predictV2 } from './src/blender-v2';
-import { insertSignal, upsertCandle, getRecentSignals, getTodayStats, getAllPerformance } from './src/store';
+import { insertSignal, upsertCandle, getRecentSignals, getTodayStats, getAllPerformance, DB_PATH } from './src/store';
 import { startValidator } from './src/validator';
 import { OTC_SYMBOLS } from './src/pairs';
 import type { Candle, Tick } from './src/types';
 import { randomUUID } from 'crypto';
 import { detectAlgorithm, getAllCurrentDetections, type DetectionResult } from './src/algorithm-detector';
 import { startAgent, stopAgent } from './src/ai-agent';
+import { writeEnvKey } from './src/paths';
 
-const PORT = 3003;
-const HTTP_API_PORT = 3004;
-const DB_PATH = '/home/z/my-project/db/custom.db';
+const PORT = Number(process.env.MINI_SERVICE_PORT) || 3003;
+const HTTP_API_PORT = Number(process.env.MINI_SERVICE_HTTP_PORT) || 3004;
 
 const httpServer = createServer();
 const io = new Server(httpServer, {
-  path: '/',
+  path: '/socket.io/',
   cors: { origin: '*', methods: ['GET', 'POST'] },
   pingTimeout: 60000,
   pingInterval: 25000,
@@ -68,12 +68,10 @@ const apiServer = createServer((req, res) => {
           res.end(JSON.stringify({ ok: false, error: 'Invalid token' }));
           return;
         }
-        // Persist to .env
+        // Persist to .env (dynamic path — works in dev AND Railway)
         try {
-          const fs = require('fs');
-          const envContent = fs.readFileSync('/home/z/my-project/.env', 'utf8');
-          const newEnv = envContent.replace(/^QX_TOKEN=.*$/m, `QX_TOKEN=${token}`);
-          fs.writeFileSync('/home/z/my-project/.env', newEnv);
+          writeEnvKey('QX_TOKEN', token);
+          console.log('[http] token persisted to .env');
         } catch (e: any) {
           console.error('[http] failed to persist .env:', e.message);
         }
@@ -86,7 +84,7 @@ const apiServer = createServer((req, res) => {
           accepted,
           message: accepted
             ? 'Token accepted — reconnecting. Live data will resume in ~5s.'
-            : 'Token was the same as before — no action taken.',
+            : 'Token forwarded to feed. Live data will resume in ~10s (auto-detect).',
         }));
       } catch (e: any) {
         res.writeHead(400, { 'Content-Type': 'application/json' });

@@ -3,3 +3,22 @@ node_modules/
 
 .next/
 next-env.d.ts
+tsconfig.tsbuildinfo
+
+# Secrets — NEVER commit
+.env
+.env.local
+.env.production
+.env.*.local
+session.json
+
+# Database (live data, not for version control)
+db/*.db
+db/*.db-shm
+db/*.db-wal
+db/
+
+# Logs
+*.log
+.dev.log
+.tmp/

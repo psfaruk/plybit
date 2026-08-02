@@ -309,6 +309,41 @@ export class QuotexOTCClient {
     }
   }
 
+  // ────────────────────────────────────────────────────────────────────────────
+  // Token refresh — called when the user provides a fresh Quotex token via
+  // the UI modal. Tears down the existing WS connection and reconnects with
+  // the new token without losing registered tick/candle handlers.
+  // ────────────────────────────────────────────────────────────────────────────
+  refreshToken(newToken: string): boolean {
+    if (!newToken || typeof newToken !== 'string' || newToken.length < 10) return false;
+    if (newToken.trim() === this.token) {
+      console.log('[live-feed] refreshToken: same token, ignoring');
+      return false;
+    }
+    this.token = newToken.trim();
+    this.authed = false;
+    this.subscribedAssets.clear();
+    console.log(`[live-feed] 🔄 refreshing token (${this.token.slice(0, 8)}…) — tearing down WS`);
+
+    // Tear down existing connection (don't set stopReconnect — we want to reconnect)
+    if (this.pingTimer) { clearInterval(this.pingTimer); this.pingTimer = null; }
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
+    if (this.ws) {
+      try { this.ws.removeAllListeners(); this.ws.terminate(); } catch {}
+      this.ws = null;
+    }
+
+    // Re-warmup + reconnect with the new token
+    this.warmup()
+      .then(() => this.connect())
+      .catch(err => {
+        console.error('[live-feed] refreshToken reconnect failed:', err.message);
+        this.emitStatus('error');
+      });
+
+    return true;
+  }
+
   onTick(handler: TickHandler): void { this.tickHandlers.push(handler); }
   onCandle(handler: CandleHandler): void { this.candleHandlers.push(handler); }
 
@@ -345,6 +380,7 @@ export class QuotexOTCClient {
           let startIdx = 0;
           for (let i = 0; i < Math.min(buf.length, 10); i++) {
             const b = buf[i];
+            if (b === undefined) continue;
             if (b === 0x5B || b === 0x7B || b === 0x22 ||
                 (b >= 0x30 && b <= 0x39) || b === 0x2D ||
                 b === 0x74 || b === 0x66 || b === 0x6E) {

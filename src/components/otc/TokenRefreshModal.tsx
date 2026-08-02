@@ -127,21 +127,34 @@ export function TokenRefreshModal({ open, onClose, onRefreshed }: TokenRefreshMo
           <Button size="sm" variant="ghost" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
-          <Button
-            size="sm"
-            onClick={handleSubmit}
-            disabled={submitting || !token.trim()}
-            className="bg-rose-600 hover:bg-rose-700 text-white"
-          >
-            {submitting ? (
-              <>
-                <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                Reconnecting…
-              </>
-            ) : (
-              'Refresh Token'
-            )}
-          </Button>
+          {result?.ok ? (
+            <Button
+              size="sm"
+              onClick={() => {
+                onRefreshed();
+                onClose();
+              }}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              Done
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={handleSubmit}
+              disabled={submitting || !token.trim()}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {submitting ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                  Reconnecting…
+                </>
+              ) : (
+                'Refresh Token'
+              )}
+            </Button>
+          )}
         </div>
       </div>
     </div>
