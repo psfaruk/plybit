@@ -1,6 +1,7 @@
 #!/bin/bash
 # railway-start.sh — Railway runtime startup
-# Uses `next start` (NOT standalone server.js which crashes Bun with stack smashing)
+# Runs: 1) mini-service (background, internal only)
+#       2) custom server.js (Next.js + Socket.io on same port)
 
 set -e
 
@@ -21,8 +22,8 @@ QX_COOKIES=${QX_COOKIES:-}
 QX_IS_DEMO=${QX_IS_DEMO:-0}
 EOF
 
-# ── Start mini-service (background) ──
-echo "=== [railway] Starting mini-service (port 3003+3004) ==="
+# ── Start mini-service (background — connects to Quotex, writes to DB) ──
+echo "=== [railway] Starting mini-service (port 3003, internal) ==="
 cd /app/mini-services/otc-engine
 setsid nohup bun --env-file=/app/.env index.ts > /tmp/mini-service.log 2>&1 < /dev/null &
 MINI_PID=$!
@@ -31,9 +32,8 @@ echo "[railway] Mini-service PID: $MINI_PID"
 
 sleep 3
 
-# ── Start Next.js using `next start` (NOT standalone server.js) ──
-# standalone server.js crashes Bun with "stack smashing detected"
-# `next start` is designed to work with any runtime including Bun
-echo "=== [railway] Starting Next.js (port ${PORT:-8080}) ==="
+# ── Start custom server.js (Next.js + Socket.io on same port) ──
+# Uses Node.js (NOT Bun — Bun crashes with stack smashing on standalone server)
+echo "=== [railway] Starting Next.js + Socket.io (port ${PORT:-8080}) ==="
 cd /app
-exec bunx next start -p ${PORT:-8080}
+exec node server.js

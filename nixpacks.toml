@@ -1,4 +1,5 @@
 # Nixpacks config — Railway uses this to build AND run the app
+# Custom server.js runs Next.js + Socket.io on the SAME port (Railway requirement)
 
 [phases.setup]
 nixPkgs = ["nodejs_20", "bun"]
@@ -12,10 +13,10 @@ cmds = [
 ]
 
 [phases.build]
-# Build with Node.js — Turbopack needs worker_threads which Bun lacks
 cmds = [
   "NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS='--max-old-space-size=512' npx next build"
 ]
 
 [start]
+# Run custom server.js with Node.js (NOT Bun — Bun crashes with stack smashing)
 cmd = "bash railway-start.sh"

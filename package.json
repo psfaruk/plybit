@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "npx next build",
-    "start": "next start -p ${PORT:-8080}",
+    "start": "node server.js",
     "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate"
   },
@@ -47,6 +47,7 @@
     "prisma": "^6.11.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "sonner": "^2.0.6",
     "tailwind-merge": "^3.3.1",

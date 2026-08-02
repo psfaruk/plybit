@@ -88,7 +88,7 @@ export function useOtcEngine(): UseOtcEngineResult {
   }), []);
 
   useEffect(() => {
-    const socket = io('/?XTransformPort=3003', {
+    const socket = io({
       transports: ['websocket', 'polling'],
       forceNew: true,
       reconnection: true,
