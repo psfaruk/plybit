@@ -30,10 +30,22 @@ export QX_IS_DEMO="${QX_IS_DEMO:-0}"
 export MINI_SERVICE_URL=http://localhost:3003
 
 # ── Write .z-ai-config for the AI agent (GLM 5.2 SDK) ──────────────────────
-# The z-ai-web-dev-sdk requires a .z-ai-config file with baseUrl + apiKey.
-# On Railway, we generate it at runtime from env vars (or use defaults).
-# Priority: ZAI_API_KEY env var > default "Z.ai" (works with internal API).
-cat > /app/mini-services/otc-engine/.z-ai-config << ZAICONFIG
+# The z-ai-web-dev-sdk requires a .z-ai-config file with baseUrl + apiKey + token.
+# On Railway, we generate it at runtime from env vars.
+# If ZAI_TOKEN is not set, the agent will use rule-based analysis (no LLM).
+if [ -n "$ZAI_TOKEN" ]; then
+  cat > /app/mini-services/otc-engine/.z-ai-config << ZAICONFIG
+{
+  "baseUrl": "${ZAI_BASE_URL:-https://internal-api.z.ai/v1}",
+  "apiKey": "${ZAI_API_KEY:-Z.ai}",
+  "chatId": "${ZAI_CHAT_ID:-chat-otc-agent}",
+  "userId": "${ZAI_USER_ID:-otc-agent}",
+  "token": "${ZAI_TOKEN}"
+}
+ZAICONFIG
+else
+  # No ZAI_TOKEN — create config anyway (agent will fall back to rule-based analysis)
+  cat > /app/mini-services/otc-engine/.z-ai-config << ZAICONFIG
 {
   "baseUrl": "${ZAI_BASE_URL:-https://internal-api.z.ai/v1}",
   "apiKey": "${ZAI_API_KEY:-Z.ai}",
@@ -41,6 +53,7 @@ cat > /app/mini-services/otc-engine/.z-ai-config << ZAICONFIG
   "userId": "${ZAI_USER_ID:-otc-agent}"
 }
 ZAICONFIG
+fi
 
 # Also write to home dir as fallback (SDK checks cwd → home → /etc)
 cp /app/mini-services/otc-engine/.z-ai-config /root/.z-ai-config 2>/dev/null || true
@@ -52,6 +65,7 @@ echo "  QX_COOKIES length: ${#QX_COOKIES}"
 echo "  QX_IS_DEMO=$QX_IS_DEMO"
 echo "  ZAI_BASE_URL=${ZAI_BASE_URL:-https://internal-api.z.ai/v1}"
 echo "  ZAI_API_KEY set: $([ -n "$ZAI_API_KEY" ] && echo yes || echo 'no (using default)')"
+echo "  ZAI_TOKEN set: $([ -n "$ZAI_TOKEN" ] && echo yes || echo 'no — agent will use rule-based analysis')"
 echo "  .z-ai-config: $(ls -la /app/mini-services/otc-engine/.z-ai-config 2>&1 | awk '{print $5" bytes"}')"
 
 # ── Push database schema (now .env exists, prisma will find DATABASE_URL) ──

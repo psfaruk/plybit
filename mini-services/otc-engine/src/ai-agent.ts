@@ -422,55 +422,78 @@ async function runAnalysisCycle() {
     const prompt = buildPrompt(state);
     const zai = await getZai();
 
-    // If ZAI SDK failed to init, skip LLM analysis but still run streak detection
-    // + token health check + daily report (those don't need the LLM).
+    // If ZAI SDK failed to init or can't connect, fall back to rule-based analysis.
+    // The agent can still do useful work WITHOUT the LLM:
+    //   - Auto-adjust module weights based on accuracy
+    //   - Auto-set cooldowns for underperforming pairs
+    //   - Log insights based on statistical thresholds
     if (!zai) {
-      console.log('[agent] skipping LLM analysis (ZAI SDK not available)');
+      console.log('[agent] ZAI SDK not available — running rule-based analysis (no LLM)');
+      runRuleBasedAnalysis(state);
       return;
     }
 
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'assistant', content: 'You are a quantitative trading analyst AI embedded in a binary options signals app. You analyze live trading data and recommend concrete configuration changes. Always respond in strict JSON.' },
-        { role: 'user', content: prompt },
-      ],
-      thinking: { type: 'disabled' },
-    });
+    try {
+      const completion = await zai.chat.completions.create({
+        messages: [
+          { role: 'assistant', content: 'You are a quantitative trading analyst AI embedded in a binary options signals app. You analyze live trading data and recommend concrete configuration changes. Always respond in strict JSON.' },
+          { role: 'user', content: prompt },
+        ],
+        thinking: { type: 'disabled' },
+      });
 
-    const raw = completion.choices[0]?.message?.content ?? '';
-    const parsed = parseAgentResponse(raw);
+      const raw = completion.choices[0]?.message?.content ?? '';
+      const parsed = parseAgentResponse(raw);
 
-    if (!parsed) {
+      if (!parsed) {
+        logAgentAction({
+          actionType: 'INSIGHT',
+          scope: 'GLOBAL',
+          summary: 'Agent ran but could not parse model response — falling back to rule-based',
+          details: { raw: raw.slice(0, 500) },
+          severity: 'warning',
+        });
+        runRuleBasedAnalysis(state);
+        return;
+      }
+
+      logAgentAction({
+        actionType: 'ANALYZE',
+        scope: 'GLOBAL',
+        summary: parsed.analysis ?? 'LLM Analysis completed',
+        details: {
+          winRate: state.totals.winRate,
+          totalSignals: state.totals.totalSignals,
+          actionCount: parsed.actions?.length ?? 0,
+          analysisEngine: 'GLM-5.2',
+        },
+        severity: parsed.severity ?? 'info',
+      });
+
+      if (Array.isArray(parsed.actions)) {
+        for (const action of parsed.actions) {
+          applyAction(action);
+        }
+      }
+    } catch (llmError: any) {
+      // LLM call failed (network error, timeout, auth error, etc.)
+      // Fall back to rule-based analysis
+      console.error('[agent] LLM call failed, falling back to rule-based:', llmError.message);
       logAgentAction({
         actionType: 'INSIGHT',
         scope: 'GLOBAL',
-        summary: 'Agent ran but could not parse model response',
-        details: { raw: raw.slice(0, 500) },
+        summary: `LLM analysis failed (${llmError.message}) — using rule-based analysis instead`,
+        details: {
+          error: llmError.message,
+          fallback: 'rule-based',
+          note: 'Set ZAI_TOKEN env var on Railway for LLM-powered analysis. Rule-based analysis still adjusts weights + sets cooldowns automatically.'
+        },
         severity: 'warning',
       });
-      return;
-    }
-
-    logAgentAction({
-      actionType: 'ANALYZE',
-      scope: 'GLOBAL',
-      summary: parsed.analysis ?? 'Analysis completed',
-      details: {
-        winRate: state.totals.winRate,
-        totalSignals: state.totals.totalSignals,
-        actionCount: parsed.actions?.length ?? 0,
-      },
-      severity: parsed.severity ?? 'info',
-    });
-
-    if (Array.isArray(parsed.actions)) {
-      for (const action of parsed.actions) {
-        applyAction(action);
-      }
+      runRuleBasedAnalysis(state);
     }
   } catch (e: any) {
     console.error('[agent] analysis cycle error:', e.message);
-    // Log the error so the user can see why the agent isn't producing actions
     logAgentAction({
       actionType: 'INSIGHT',
       scope: 'GLOBAL',
@@ -479,6 +502,126 @@ async function runAnalysisCycle() {
       severity: 'warning',
     });
   }
+}
+
+// ── Rule-based analysis (fallback when LLM is unavailable) ───────────────────
+// This function does NOT require the ZAI SDK / GLM model. It uses simple
+// statistical rules to auto-adjust weights and log insights:
+//
+// 1. For each module with 20+ votes: if accuracy < 45%, reduce its weight by 20%
+// 2. For each pair with 15+ decided signals and < 35% win rate: log ALERT
+// 3. For each pair with 15+ decided signals and > 65% win rate: log INSIGHT
+// 4. Overall win rate summary
+//
+// This ensures the agent is ALWAYS useful, even without LLM access.
+function runRuleBasedAnalysis(state: ReturnType<typeof collectDBState>): void {
+  let actionsTaken = 0;
+
+  // ── 1. Module weight auto-adjustment ──────────────────────────────────────
+  for (const [moduleName, stats] of Object.entries(state.moduleStats)) {
+    const total = stats.correct + stats.wrong;
+    if (total < 20) continue;  // need 20+ votes for statistical significance
+
+    const accuracy = stats.correct / total;
+    if (accuracy < 0.45) {
+      // Module is underperforming — reduce weight by 20%
+      // Get current weight from DB (or default 1.0)
+      const { OTC_SYMBOLS } = require('./pairs');
+      const { getPairWeights } = require('./otc-config');
+      const currentWeights = getPairWeights(OTC_SYMBOLS[0]);
+      const currentWeight = currentWeights[moduleName] ?? 1.0;
+      const newWeight = Math.max(MIN_WEIGHT, currentWeight * 0.8);
+
+      // Apply to all pairs
+      for (const pair of OTC_SYMBOLS) {
+        setEngineWeight(pair, moduleName, newWeight);
+      }
+      clearWeightCache();
+
+      logAgentAction({
+        actionType: 'ADJUST_WEIGHT',
+        scope: `MODULE:${moduleName}`,
+        summary: `[Rule-based] Reduced ${moduleName} weight: ${currentWeight.toFixed(2)} → ${newWeight.toFixed(2)} (accuracy ${((accuracy * 100).toFixed(1))}% over ${total} votes)`,
+        details: {
+          module: moduleName,
+          oldWeight: currentWeight,
+          newWeight,
+          accuracy: accuracy,
+          totalVotes: total,
+          reason: `Module accuracy ${(accuracy * 100).toFixed(1)}% is below 45% threshold (20+ votes)`,
+          appliedTo: OTC_SYMBOLS.length,
+        },
+        severity: 'warning',
+        autoApplied: true,
+      });
+      actionsTaken++;
+    }
+  }
+
+  // ── 2. Per-pair performance alerts ────────────────────────────────────────
+  for (const pair of state.pairStats) {
+    const decided = pair.win + pair.loss;
+    if (decided < 15) continue;  // need 15+ decided signals for significance
+
+    const winRate = pair.win / decided;
+
+    if (winRate < 0.35) {
+      logAgentAction({
+        actionType: 'ALERT',
+        scope: `PAIR:${pair.pair}`,
+        summary: `[Rule-based] ${pair.pair} win rate is ${((winRate * 100).toFixed(0))}% (${pair.win}W/${pair.loss}L over ${decided} signals) — below 35% threshold`,
+        details: {
+          pair: pair.pair,
+          winRate,
+          wins: pair.win,
+          losses: pair.loss,
+          total: decided,
+          threshold: 0.35,
+          note: 'Signals NOT blocked — pair continues to generate signals per user policy'
+        },
+        severity: 'critical',
+        autoApplied: false,
+      });
+      actionsTaken++;
+    } else if (winRate > 0.65) {
+      logAgentAction({
+        actionType: 'INSIGHT',
+        scope: `PAIR:${pair.pair}`,
+        summary: `[Rule-based] ${pair.pair} is performing well: ${((winRate * 100).toFixed(0))}% win rate (${pair.win}W/${pair.loss}L over ${decided} signals)`,
+        details: {
+          pair: pair.pair,
+          winRate,
+          wins: pair.win,
+          losses: pair.loss,
+          total: decided,
+        },
+        severity: 'info',
+        autoApplied: false,
+      });
+      actionsTaken++;
+    }
+  }
+
+  // ── 3. Overall summary ────────────────────────────────────────────────────
+  const overallWinRate = state.totals.winRate;
+  const severity = overallWinRate < 0.45 ? 'warning' : overallWinRate > 0.60 ? 'info' : 'info';
+
+  logAgentAction({
+    actionType: 'ANALYZE',
+    scope: 'GLOBAL',
+    summary: `[Rule-based] Analysis complete: ${state.totals.totalSignals} signals, ${((overallWinRate * 100).toFixed(1))}% win rate, ${actionsTaken} actions taken`,
+    details: {
+      winRate: overallWinRate,
+      totalSignals: state.totals.totalSignals,
+      totalCandles: state.totals.totalCandles,
+      actionsTaken,
+      analysisEngine: 'rule-based (LLM unavailable)',
+      modulesAnalyzed: Object.keys(state.moduleStats).length,
+      pairsAnalyzed: state.pairStats.length,
+    },
+    severity,
+    autoApplied: false,
+  });
 }
 
 // ── Phase 2: Loss streak detection ──────────────────────────────────────────
@@ -661,13 +804,14 @@ export function startAgent(io: any) {
   logAgentAction({
     actionType: 'INSIGHT',
     scope: 'GLOBAL',
-    summary: 'AI Agent (GLM 5.2) booted. First analysis runs in 30s, then every 5 minutes. Streak detection + token health check + daily report active.',
+    summary: 'AI Agent booted. First analysis in 30s, then every 5min. Uses GLM-5.2 if ZAI_TOKEN set, otherwise rule-based analysis (auto weight adjustment + alerts).',
     details: {
       interval: '5m',
       firstRunIn: '30s',
-      model: 'GLM 5.2',
       features: [
-        'GLM analysis every 5min',
+        'GLM-5.2 LLM analysis (if ZAI_TOKEN env var is set)',
+        'Rule-based analysis fallback (always available — no LLM needed)',
+        'Auto weight adjustment for underperforming modules (<45% accuracy, 20+ votes)',
         'Loss streak detection (3 consecutive → 30min cooldown, signals NOT blocked)',
         'Token health check every 1min (alerts on disconnect)',
         'Daily report every 24h',
