@@ -1,17 +1,14 @@
 // server.js — Custom Next.js server with Socket.io integrated
-// This runs BOTH Next.js + Socket.io on the same port (Railway's PORT)
-// Solves the problem of Railway only exposing ONE port.
+// Runs BOTH Next.js + Socket.io on the same port (Railway single-port requirement)
+// Uses Prisma (NOT bun:sqlite) for database access — works with Node.js
 
 const { createServer } = require('http');
 const { parse } = require('url');
 const next = require('next');
 const { Server } = require('socket.io');
-const { Database } = require('bun:sqlite');
-const { randomUUID } = require('crypto');
+const { PrismaClient } = require('@prisma/client');
 
 const PORT = process.env.PORT || 8080;
-const DB_PATH = '/app/db/custom.db';
-
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = '0.0.0.0';
 
@@ -24,7 +21,9 @@ const OTC_PAIRS = [
   'GBPCHF-OTC', 'USDZAR-OTC', 'USDDZD-OTC', 'USDINR-OTC', 'AUDCHF-OTC',
 ];
 
-app.prepare().then(() => {
+app.prepare().then(async () => {
+  const prisma = new PrismaClient();
+
   const server = createServer((req, res) => {
     const parsedUrl = parse(req.url, true);
     handle(req, res, parsedUrl);
@@ -37,139 +36,106 @@ app.prepare().then(() => {
     pingInterval: 25000,
   });
 
+  let lastSignalTimestamp = Math.floor(Date.now() / 1000);
+
   // ── Socket.io connection handler ──
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
     console.log('[socket.io] client connected:', socket.id);
 
-    // Send INIT with available pairs
-    let recentSignals = [];
-    let feedStatus = { mode: 'live', message: 'Quotex LIVE feed' };
-
     try {
-      const db = new Database(DB_PATH, { readonly: true });
-      recentSignals = db.query(
-        `SELECT * FROM SignalLog ORDER BY timestamp DESC LIMIT 20`
-      ).all();
-      db.close();
+      const recentSignals = await prisma.signalLog.findMany({
+        orderBy: { timestamp: 'desc' },
+        take: 20,
+      });
+
+      const feedStatus = { mode: 'live', message: 'Quotex LIVE feed' };
+
+      socket.emit('INIT', {
+        type: 'INIT',
+        pairs: OTC_PAIRS,
+        recentSignals,
+        stats: null,
+        feedStatus,
+      });
+      socket.emit('FEED_STATUS', feedStatus);
     } catch (e) {
-      // DB might not be ready yet
+      console.error('[socket.io] INIT error:', e.message);
+      socket.emit('INIT', {
+        type: 'INIT',
+        pairs: OTC_PAIRS,
+        recentSignals: [],
+        stats: null,
+        feedStatus: { mode: 'live', message: 'Connecting...' },
+      });
     }
 
-    socket.emit('INIT', {
-      type: 'INIT',
-      pairs: OTC_PAIRS,
-      recentSignals,
-      stats: null,
-      feedStatus,
-    });
+    // ── Event handlers ──
+    socket.on('subscribe', () => {});
+    socket.on('feed-status', (_d, ack) => ack && ack({ mode: 'live', message: 'Quotex LIVE' }));
 
-    socket.emit('FEED_STATUS', feedStatus);
-
-    // ── Socket event handlers ──
-    socket.on('subscribe', (data) => {
-      // Accept subscription (all pairs by default)
-    });
-
-    socket.on('stats', (_data, ack) => {
-      if (typeof ack === 'function') {
-        try {
-          const db = new Database(DB_PATH, { readonly: true });
-          const today = new Date().toISOString().slice(0, 10);
-          const stats = db.query(
-            `SELECT
-               COUNT(*) as total,
-               SUM(CASE WHEN result='WIN' THEN 1 ELSE 0 END) as wins,
-               SUM(CASE WHEN result='LOSS' THEN 1 ELSE 0 END) as losses,
-               SUM(CASE WHEN result='PENDING' THEN 1 ELSE 0 END) as pending
-             FROM SignalLog WHERE date(createdAt/1000, 'unixepoch') = date('now')`
-          ).get();
-          db.close();
-          ack(stats || { total: 0, wins: 0, losses: 0, pending: 0 });
-        } catch (e) {
-          ack({ total: 0, wins: 0, losses: 0, pending: 0 });
-        }
-      }
-    });
-
-    socket.on('feed-status', (_data, ack) => {
-      if (typeof ack === 'function') ack(feedStatus);
-    });
-
-    socket.on('recent-signals', (data, ack) => {
-      if (typeof ack !== 'function') return;
+    socket.on('stats', async (_d, ack) => {
+      if (!ack) return;
       try {
-        const db = new Database(DB_PATH, { readonly: true });
+        const total = await prisma.signalLog.count();
+        const wins = await prisma.signalLog.count({ where: { result: 'WIN' } });
+        const losses = await prisma.signalLog.count({ where: { result: 'LOSS' } });
+        const pending = await prisma.signalLog.count({ where: { result: 'PENDING' } });
+        ack({ total, wins, losses, pending });
+      } catch (e) { ack({ total: 0, wins: 0, losses: 0, pending: 0 }); }
+    });
+
+    socket.on('recent-signals', async (data, ack) => {
+      if (!ack) return;
+      try {
         const limit = Math.min(data?.limit ?? 50, 200);
-        const rows = db.query(
-          `SELECT * FROM SignalLog ORDER BY timestamp DESC LIMIT ?`
-        ).all(limit);
-        db.close();
+        const rows = await prisma.signalLog.findMany({
+          orderBy: { timestamp: 'desc' },
+          take: limit,
+        });
         ack(rows);
-      } catch (e) {
-        ack([]);
-      }
+      } catch (e) { ack([]); }
     });
 
-    socket.on('algorithm-current', (_data, ack) => {
-      if (typeof ack === 'function') ack([]);
+    socket.on('algorithm-current', (_d, ack) => ack && ack([]));
+
+    socket.on('algorithm-history', async (_d, ack) => {
+      if (!ack) return;
+      try {
+        const rows = await prisma.algorithmDetection.findMany({
+          orderBy: { detectedAt: 'desc' },
+          take: 50,
+        });
+        ack(rows);
+      } catch (e) { ack([]); }
     });
 
-    socket.on('algorithm-history', (_data, ack) => {
-      if (typeof ack === 'function') {
-        try {
-          const db = new Database(DB_PATH, { readonly: true });
-          const rows = db.query(
-            `SELECT * FROM AlgorithmDetection ORDER BY detectedAt DESC LIMIT 50`
-          ).all();
-          db.close();
-          ack(rows);
-        } catch (e) {
-          ack([]);
-        }
-      }
+    socket.on('agent-actions', async (_d, ack) => {
+      if (!ack) return;
+      try {
+        const rows = await prisma.agentAction.findMany({
+          orderBy: { timestamp: 'desc' },
+          take: 50,
+        });
+        ack(rows);
+      } catch (e) { ack([]); }
     });
 
-    socket.on('agent-actions', (_data, ack) => {
-      if (typeof ack === 'function') {
-        try {
-          const db = new Database(DB_PATH, { readonly: true });
-          const rows = db.query(
-            `SELECT * FROM AgentAction ORDER BY timestamp DESC LIMIT 50`
-          ).all();
-          db.close();
-          ack(rows);
-        } catch (e) {
-          ack([]);
-        }
-      }
-    });
+    socket.on('history', (_d, ack) => ack && ack([]));
+    socket.on('performance', (_d, ack) => ack && ack([]));
 
-    socket.on('history', (data, ack) => {
-      if (typeof ack === 'function') ack([]);
-    });
-
-    socket.on('performance', (_data, ack) => {
-      if (typeof ack === 'function') ack([]);
-    });
-
-    socket.on('disconnect', () => {
-      console.log('[socket.io] client disconnected:', socket.id);
-    });
+    socket.on('disconnect', () => {});
   });
 
-  // ── Periodically check DB for new signals and broadcast ──
-  let lastSignalTimestamp = 0;
-  setInterval(() => {
+  // ── Poll DB for new signals and broadcast ──
+  setInterval(async () => {
     try {
-      const db = new Database(DB_PATH, { readonly: true });
-      const newSignals = db.query(
-        `SELECT * FROM SignalLog WHERE timestamp > ? ORDER BY timestamp ASC`
-      ).all(lastSignalTimestamp);
-      db.close();
+      const newSignals = await prisma.signalLog.findMany({
+        where: { timestamp: { gt: lastSignalTimestamp } },
+        orderBy: { timestamp: 'asc' },
+      });
 
       for (const sig of newSignals) {
-        // Parse modulesVotes
-        let votes = sig.modulesVotes;
+        let votes = [];
         try { votes = JSON.parse(sig.modulesVotes); } catch {}
 
         io.emit('SIGNAL', {
@@ -181,17 +147,14 @@ app.prepare().then(() => {
           strength: sig.strength,
           entry: sig.entryPrice,
           expiry: sig.expiry,
-          votes: votes || [],
+          votes,
         });
         lastSignalTimestamp = sig.timestamp;
       }
-    } catch (e) {
-      // DB might not be ready
-    }
+    } catch (e) {}
   }, 5000);
 
   server.listen(PORT, () => {
     console.log(`> Ready on http://${hostname}:${PORT}`);
-    console.log(`> Socket.io path: /`);
   });
 });
