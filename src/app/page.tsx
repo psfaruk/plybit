@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { Radio, Wifi, WifiOff, Bell, BellOff, History, Brain, Cpu, Activity, AlertCircle } from 'lucide-react';
+import { Radio, Wifi, WifiOff, Bell, BellOff, History, Brain, Cpu, Activity, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import Link from 'next/link';
 import { useOtcEngine } from '@/hooks/use-otc-engine';
 import { StatsBar } from '@/components/otc/StatsBar';
@@ -41,6 +41,7 @@ export default function Home() {
 
   const [selectedPair, setSelectedPair] = useState<string | null>(null);
   const [tokenModalOpen, setTokenModalOpen] = useState(false);
+  const [algoDropdownOpen, setAlgoDropdownOpen] = useState(false);
 
   // Auto-open token modal when feed disconnects for more than 3s (avoids flicker)
   const isDisconnected = feedStatus?.mode === 'disconnected';
@@ -233,34 +234,49 @@ export default function Home() {
               </div>
             )}
 
-            {/* Other pairs as compact badges */}
+            {/* All pairs algorithm dropdown — collapsible to save vertical space */}
             {algorithms.length > 0 && (
-              <div className="rounded-lg border bg-card/30 p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-xs font-medium text-muted-foreground">
-                    All pairs · broker algorithm detection (background)
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {algorithms.map(a => (
-                    <button
-                      key={a.pair}
-                      onClick={() => setSelectedPair(a.pair)}
-                      className={cn(
-                        'inline-flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-medium border transition-all hover:scale-105',
-                        ALGO_COLORS[a.algorithm] ?? ALGO_COLORS.COLD_START,
-                        a.pair === effectivePair && 'ring-2 ring-offset-1 ring-foreground/40'
-                      )}
-                      title={a.transitionNote}
-                    >
-                      <span className="opacity-70">{a.pair.replace('-OTC', '')}</span>
-                      <span>·</span>
-                      <span>{a.algorithm.replace('_', ' ')}</span>
-                      <span className="opacity-60">{(a.confidence * 100).toFixed(0)}%</span>
-                    </button>
-                  ))}
-                </div>
+              <div className="rounded-lg border bg-card/30 overflow-hidden">
+                <button
+                  onClick={() => setAlgoDropdownOpen(o => !o)}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-accent/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Cpu className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-xs font-medium text-muted-foreground">
+                      All pairs · broker algorithm detection
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/70">
+                      ({algorithms.length} pairs · background)
+                    </span>
+                  </div>
+                  {algoDropdownOpen
+                    ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                    : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
+                </button>
+                {algoDropdownOpen && (
+                  <div className="px-3 pb-3 pt-1 border-t">
+                    <div className="flex flex-wrap gap-1.5 pt-2">
+                      {algorithms.map(a => (
+                        <button
+                          key={a.pair}
+                          onClick={() => { setSelectedPair(a.pair); setAlgoDropdownOpen(false); }}
+                          className={cn(
+                            'inline-flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-medium border transition-all hover:scale-105',
+                            ALGO_COLORS[a.algorithm] ?? ALGO_COLORS.COLD_START,
+                            a.pair === effectivePair && 'ring-2 ring-offset-1 ring-foreground/40'
+                          )}
+                          title={a.transitionNote}
+                        >
+                          <span className="opacity-70">{a.pair.replace('-OTC', '')}</span>
+                          <span>·</span>
+                          <span>{a.algorithm.replace('_', ' ')}</span>
+                          <span className="opacity-60">{(a.confidence * 100).toFixed(0)}%</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

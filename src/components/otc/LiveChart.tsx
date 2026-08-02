@@ -317,6 +317,12 @@ export function LiveChart({ pair, ticks, feedMode, cachedCandles, onRequestCandl
   // ── Set candle data when history arrives ───────────────────────────────────
   // This effect runs when candles state changes. If the chart isn't ready yet
   // (seriesRef null), we retry after a short delay.
+  //
+  // CRITICAL: LightweightCharts requires:
+  //   1. Strictly ascending time values (no duplicates)
+  //   2. All OHLC values to be finite numbers (no NaN/Infinity)
+  //   3. high >= max(open, close) and low <= min(open, close)
+  // Without sanitization, certain pairs crash the chart on render.
   useEffect(() => {
     if (candles.length === 0) return;
     if (currentPairRef.current !== pair) return;
@@ -330,8 +336,45 @@ export function LiveChart({ pair, ticks, feedMode, cachedCandles, onRequestCandl
       return () => clearTimeout(retryId);
     }
 
-    const sorted = [...candles].sort((a, b) => a.time - b.time);
-    const data = sorted.map(c => ({
+    // ── Sanitize candle data ──────────────────────────────────────────────────
+    // 1. Filter out invalid OHLC (NaN, Infinity, zero/negative price)
+    // 2. Ensure high >= max(open, close, low) and low <= min(open, close, high)
+    // 3. Sort ascending by time
+    // 4. Dedupe by time (keep last occurrence)
+    const seenTimes = new Set<number>();
+    const cleaned = candles
+      .filter(c => {
+        if (!c || typeof c.time !== 'number') return false;
+        if (!Number.isFinite(c.time) || c.time <= 0) return false;
+        if (!Number.isFinite(c.open) || c.open <= 0) return false;
+        if (!Number.isFinite(c.high) || c.high <= 0) return false;
+        if (!Number.isFinite(c.low) || c.low <= 0) return false;
+        if (!Number.isFinite(c.close) || c.close <= 0) return false;
+        return true;
+      })
+      .map(c => {
+        // Enforce OHLC consistency
+        const high = Math.max(c.high, c.open, c.close, c.low);
+        const low = Math.min(c.low, c.open, c.close, c.high);
+        return {
+          time: c.time,
+          open: c.open,
+          high,
+          low,
+          close: c.close,
+        };
+      })
+      .sort((a, b) => a.time - b.time)
+      .filter(c => {
+        // Dedupe: keep only the first occurrence of each timestamp
+        if (seenTimes.has(c.time)) return false;
+        seenTimes.add(c.time);
+        return true;
+      });
+
+    if (cleaned.length === 0) return;
+
+    const data = cleaned.map(c => ({
       time: c.time as any,
       open: c.open,
       high: c.high,
@@ -348,7 +391,7 @@ export function LiveChart({ pair, ticks, feedMode, cachedCandles, onRequestCandl
         chartRef.current?.timeScale().fitContent();
 
         // Initialize live candle from last closed candle
-        const last = sorted[sorted.length - 1];
+        const last = data[data.length - 1];
         if (last) {
           liveCandleRef.current = {
             time: last.time,

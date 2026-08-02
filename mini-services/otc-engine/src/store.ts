@@ -8,7 +8,7 @@ import { getDbPath } from './paths';
 const DB_PATH = getDbPath();
 
 let _db: Database | null = null;
-function db(): Database {
+export function db(): Database {
   if (!_db) {
     _db = new Database(DB_PATH, { create: true });
     _db.exec('PRAGMA journal_mode = WAL;');

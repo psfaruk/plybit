@@ -39,13 +39,14 @@ export function logAgentAction(params: {
   autoApplied?: boolean;
 }): void {
   try {
+    const id = randomUUID();
     const db = new Database(DB_PATH);
     const now = Math.floor(Date.now() / 1000);
     db.query(
       `INSERT INTO AgentAction (id, timestamp, actionType, scope, summary, details, severity, autoApplied)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
-      randomUUID(),
+      id,
       now,
       params.actionType,
       params.scope,
@@ -59,6 +60,7 @@ export function logAgentAction(params: {
     if (ioRef) {
       ioRef.emit('AGENT_ACTION', {
         type: 'AGENT_ACTION',
+        id,
         timestamp: now,
         actionType: params.actionType,
         scope: params.scope,
@@ -258,7 +260,17 @@ function applyAction(action: any): boolean {
 async function runAnalysisCycle() {
   try {
     const state = collectDBState();
-    if (state.totals.totalSignals < 5) return;
+    if (state.totals.totalSignals < 5) {
+      // Not enough data yet — log a one-time INSIGHT so the user sees the agent is alive
+      logAgentAction({
+        actionType: 'INSIGHT',
+        scope: 'GLOBAL',
+        summary: `Agent waiting for more data (${state.totals.totalSignals}/5 signals collected). Analysis will start once 5+ signals exist.`,
+        details: { totalSignals: state.totals.totalSignals, totalCandles: state.totals.totalCandles },
+        severity: 'info',
+      });
+      return;
+    }
 
     const prompt = buildPrompt(state);
     const zai = await getZai();
@@ -304,12 +316,29 @@ async function runAnalysisCycle() {
     }
   } catch (e: any) {
     console.error('[agent] analysis cycle error:', e.message);
+    // Log the error so the user can see why the agent isn't producing actions
+    logAgentAction({
+      actionType: 'INSIGHT',
+      scope: 'GLOBAL',
+      summary: `Agent analysis cycle failed: ${e.message}`,
+      details: { error: e.message, stack: e.stack?.slice(0, 500) },
+      severity: 'warning',
+    });
   }
 }
 
 export function startAgent(io: any) {
   ioRef = io;
   console.log('[agent] 🤖 AI Agent starting — analysis every 5 minutes (GLM 5.2)');
+
+  // Log a boot status so the user immediately sees the agent is alive
+  logAgentAction({
+    actionType: 'INSIGHT',
+    scope: 'GLOBAL',
+    summary: 'AI Agent (GLM 5.2) booted. First analysis runs in 30s, then every 5 minutes.',
+    details: { interval: '5m', firstRunIn: '30s', model: 'GLM 5.2' },
+    severity: 'info',
+  });
 
   setTimeout(() => {
     runAnalysisCycle().catch(e => console.error('[agent] first cycle error:', e.message));
