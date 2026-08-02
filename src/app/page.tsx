@@ -32,7 +32,13 @@ const SEVERITY_COLORS: Record<string, string> = {
 };
 
 export default function Home() {
-  const { connected, pairs, signals, ticks, stats, feedStatus, algorithms, agentActions, refreshStats } = useOtcEngine();
+  const {
+    connected, pairs, signals, ticks, stats, feedStatus, algorithms, agentActions,
+    candlesByPair, fetchCandles,
+    getSignalsForPair, getAlgorithmForPair, getAgentActionsForPair,
+    refreshStats,
+  } = useOtcEngine();
+
   const [selectedPair, setSelectedPair] = useState<string | null>(null);
   const [tokenModalOpen, setTokenModalOpen] = useState(false);
 
@@ -50,10 +56,39 @@ export default function Home() {
   // Derived: effective selected pair falls back to first pair
   const effectivePair = selectedPair ?? (pairs.length > 0 ? pairs[0] : null);
 
-  // Beep on a brand-new top signal
+  // ── Pair-filtered data for the UI ──────────────────────────────────────────
+  // Only show signals/history/algorithms/agent-actions relevant to the selected pair.
+  // Background collection (mini-service) keeps running for ALL pairs — these are
+  // just view filters.
+  const pairSignals = useMemo(
+    () => getSignalsForPair(effectivePair),
+    [getSignalsForPair, effectivePair]
+  );
+  const pairAlgorithm = useMemo(
+    () => getAlgorithmForPair(effectivePair),
+    [getAlgorithmForPair, effectivePair]
+  );
+  const pairAgentActions = useMemo(
+    () => getAgentActionsForPair(effectivePair),
+    [getAgentActionsForPair, effectivePair]
+  );
+
+  const activeSignals = useMemo(
+    () => pairSignals.filter(s => s.result === 'PENDING'),
+    [pairSignals]
+  );
+  const decidedSignals = useMemo(
+    () => pairSignals.filter(s => s.result !== 'PENDING'),
+    [pairSignals]
+  );
+
+  // Cached candles for the currently-selected pair
+  const cachedCandles = effectivePair ? (candlesByPair[effectivePair] || []) : [];
+
+  // Beep on a brand-new top signal (only for the selected pair)
   useEffect(() => {
-    if (!soundOn || signals.length === 0) return;
-    const top = signals[0];
+    if (!soundOn || pairSignals.length === 0) return;
+    const top = pairSignals[0];
     if (lastBeepedId.current === top.id) return;
     const ageSec = Math.floor(Date.now() / 1000) - top.timestamp;
     if (ageSec > 4) {
@@ -70,10 +105,7 @@ export default function Home() {
       osc.start();
       setTimeout(() => { osc.stop(); ctx.close(); }, 220);
     } catch { /* ignore */ }
-  }, [signals, soundOn]);
-
-  const activeSignals = useMemo(() => signals.filter(s => s.result === 'PENDING'), [signals]);
-  const decidedSignals = useMemo(() => signals.filter(s => s.result !== 'PENDING'), [signals]);
+  }, [pairSignals, soundOn]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -86,7 +118,11 @@ export default function Home() {
             </div>
             <div className="min-w-0">
               <h1 className="text-base sm:text-lg font-bold leading-tight truncate">OTC Binary Signals</h1>
-              <p className="text-xs text-muted-foreground truncate hidden sm:block">Real-time multi-engine analysis · 5M expiry</p>
+              <p className="text-xs text-muted-foreground truncate hidden sm:block">
+                {effectivePair
+                  ? `${effectivePair.replace('-OTC', '')} · OTC · 5M expiry`
+                  : 'Real-time multi-engine analysis · 5M expiry'}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -164,40 +200,73 @@ export default function Home() {
             feedMode={feedStatus?.mode ?? null}
           />
           <div className="h-[340px] sm:h-[420px] lg:h-[460px]">
-            <LiveChart key={effectivePair} pair={effectivePair} ticks={ticks} feedMode={feedStatus?.mode ?? null} />
+            <LiveChart
+              key={effectivePair}
+              pair={effectivePair}
+              ticks={ticks}
+              feedMode={feedStatus?.mode ?? null}
+              cachedCandles={cachedCandles}
+              onRequestCandles={fetchCandles}
+            />
           </div>
 
-          {/* Algorithm strip — current broker algorithm per pair */}
-          {algorithms.length > 0 && (
-            <div className="rounded-lg border bg-card/30 p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">
-                  Broker Algorithm Detection (live)
-                </span>
+          {/* Algorithm strip — show the SELECTED pair's algorithm prominently
+              and all other pairs as small badges for context */}
+          <div className="space-y-2">
+            {pairAlgorithm && (
+              <div className={cn(
+                'rounded-lg border p-3 flex items-center gap-3',
+                ALGO_COLORS[pairAlgorithm.algorithm] ?? ALGO_COLORS.COLD_START
+              )}>
+                <Cpu className="h-5 w-5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium opacity-70">
+                    Selected pair · {pairAlgorithm.pair.replace('-OTC', '')}
+                  </p>
+                  <p className="text-sm font-bold">
+                    {pairAlgorithm.algorithm.replace('_', ' ')} · {(pairAlgorithm.confidence * 100).toFixed(0)}% confidence
+                  </p>
+                  {pairAlgorithm.transitionNote && (
+                    <p className="text-[10px] opacity-70 mt-0.5">{pairAlgorithm.transitionNote}</p>
+                  )}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {algorithms.map(a => (
-                  <div
-                    key={a.pair}
-                    className={cn(
-                      'inline-flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-medium border',
-                      ALGO_COLORS[a.algorithm] ?? ALGO_COLORS.COLD_START,
-                    )}
-                    title={a.transitionNote}
-                  >
-                    <span className="opacity-70">{a.pair.replace('-OTC', '')}</span>
-                    <span>·</span>
-                    <span>{a.algorithm.replace('_', ' ')}</span>
-                    <span className="opacity-60">{(a.confidence * 100).toFixed(0)}%</span>
-                  </div>
-                ))}
+            )}
+
+            {/* Other pairs as compact badges */}
+            {algorithms.length > 0 && (
+              <div className="rounded-lg border bg-card/30 p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground">
+                    All pairs · broker algorithm detection (background)
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {algorithms.map(a => (
+                    <button
+                      key={a.pair}
+                      onClick={() => setSelectedPair(a.pair)}
+                      className={cn(
+                        'inline-flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-medium border transition-all hover:scale-105',
+                        ALGO_COLORS[a.algorithm] ?? ALGO_COLORS.COLD_START,
+                        a.pair === effectivePair && 'ring-2 ring-offset-1 ring-foreground/40'
+                      )}
+                      title={a.transitionNote}
+                    >
+                      <span className="opacity-70">{a.pair.replace('-OTC', '')}</span>
+                      <span>·</span>
+                      <span>{a.algorithm.replace('_', ' ')}</span>
+                      <span className="opacity-60">{(a.confidence * 100).toFixed(0)}%</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
-        {/* Tabbed area: Signals | History | Engines | AI Agent */}
+        {/* Tabbed area: Signals | History | Engines | AI Agent — all pair-filtered */}
         <Tabs defaultValue="active" className="w-full">
           <TabsList className="grid w-full max-w-2xl grid-cols-4">
             <TabsTrigger value="active">
@@ -219,7 +288,9 @@ export default function Home() {
             {activeSignals.length === 0 ? (
               <div className="text-center py-12 text-sm text-muted-foreground border rounded-lg bg-card/30">
                 <Radio className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                Waiting for first signal… engines are scanning OTC pairs.
+                {effectivePair
+                  ? `No active signals for ${effectivePair.replace('-OTC', '')}. Engines are scanning in the background.`
+                  : 'Waiting for first signal… engines are scanning OTC pairs.'}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -231,7 +302,9 @@ export default function Home() {
           <TabsContent value="history" className="mt-3">
             {decidedSignals.length === 0 ? (
               <div className="text-center py-12 text-sm text-muted-foreground border rounded-lg bg-card/30">
-                No closed signals yet. WIN/LOSS results will appear here after the 5-minute expiry.
+                {effectivePair
+                  ? `No closed signals yet for ${effectivePair.replace('-OTC', '')}. WIN/LOSS results will appear here after the 5-minute expiry.`
+                  : 'No closed signals yet. WIN/LOSS results will appear here after the 5-minute expiry.'}
               </div>
             ) : (
               <>
@@ -249,7 +322,24 @@ export default function Home() {
 
           <TabsContent value="engines" className="mt-3">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <EngineWeightsPanel />
+              <div>
+                <EngineWeightsPanel />
+                {pairAlgorithm && (
+                  <div className="mt-3 rounded-lg border p-3 bg-card/50">
+                    <h4 className="text-xs font-semibold mb-2">
+                      {effectivePair?.replace('-OTC', '')} · detected algorithm
+                    </h4>
+                    <div className="space-y-1 text-[11px] text-muted-foreground">
+                      <div className="flex justify-between"><span>Algorithm:</span><span className="font-mono">{pairAlgorithm.algorithm}</span></div>
+                      <div className="flex justify-between"><span>Confidence:</span><span className="font-mono">{(pairAlgorithm.confidence * 100).toFixed(0)}%</span></div>
+                      <div className="flex justify-between"><span>ATR:</span><span className="font-mono">{pairAlgorithm.evidence.atr.toFixed(5)}</span></div>
+                      <div className="flex justify-between"><span>Slope:</span><span className="font-mono">{pairAlgorithm.evidence.slope.toFixed(5)}</span></div>
+                      <div className="flex justify-between"><span>Body ratio:</span><span className="font-mono">{(pairAlgorithm.evidence.bodyRatio * 100).toFixed(0)}%</span></div>
+                      <div className="flex justify-between"><span>Streak:</span><span className="font-mono">{pairAlgorithm.evidence.streak}</span></div>
+                    </div>
+                  </div>
+                )}
+              </div>
               <div className="rounded-lg border p-4 bg-card/50">
                 <h3 className="text-sm font-semibold mb-2">OTC Success Tips</h3>
                 <ul className="space-y-1.5 text-xs text-muted-foreground">
@@ -259,6 +349,12 @@ export default function Home() {
                   <li>• Max 2–3 signals per hour — no overtrading.</li>
                   <li>• Always backtest 1 month before going live.</li>
                 </ul>
+                <div className="mt-3 pt-3 border-t text-[11px] text-muted-foreground">
+                  <p>📊 <span className="font-medium">Background engine status:</span></p>
+                  <p className="mt-1">
+                    {signals.length} total signals in memory · {algorithms.length}/{pairs.length} pairs with algorithm detection · {agentActions.length} agent actions logged
+                  </p>
+                </div>
               </div>
             </div>
           </TabsContent>
@@ -281,21 +377,25 @@ export default function Home() {
                     </h3>
                     <p className="text-xs text-muted-foreground mt-1">
                       24/7 analyzer. Runs every 5 minutes, reads DB state, computes per-pair
-                      and per-module accuracy, and auto-applies safe fixes. All actions logged below.
+                      and per-module accuracy, and auto-applies safe fixes.
+                      {effectivePair && (
+                        <> Showing actions for <span className="font-medium">{effectivePair.replace('-OTC', '')}</span> (and global actions).</>
+                      )}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {agentActions.length === 0 ? (
+              {pairAgentActions.length === 0 ? (
                 <div className="text-center py-12 text-sm text-muted-foreground border rounded-lg bg-card/30">
                   <Brain className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  Agent is warming up — first analysis runs 30 seconds after boot,
-                  then every 5 minutes. Actions will appear here.
+                  {effectivePair
+                    ? `No agent actions for ${effectivePair.replace('-OTC', '')} yet. Global analysis runs every 5 minutes.`
+                    : 'Agent is warming up — first analysis runs 30 seconds after boot, then every 5 minutes.'}
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {agentActions.map(a => (
+                  {pairAgentActions.map(a => (
                     <div key={a.id} className="rounded-lg border bg-card/50 p-3">
                       <div className="flex items-start gap-2">
                         <span

@@ -13,6 +13,10 @@ interface LiveChartProps {
   pair: string | null;
   ticks: Record<string, number>;
   feedMode?: 'live' | 'disconnected' | null;
+  /** Cached candles for this pair (from useOtcEngine.candlesByPair[pair]) */
+  cachedCandles?: Candle[];
+  /** Called when the chart needs candles for a pair (delegates to the hook) */
+  onRequestCandles?: (pair: string) => void;
 }
 
 function fmtPrice(p: number): string {
@@ -23,7 +27,7 @@ function fmtPrice(p: number): string {
 const TWEEN_MS = 250;
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
-export function LiveChart({ pair, ticks, feedMode }: LiveChartProps) {
+export function LiveChart({ pair, ticks, feedMode, cachedCandles, onRequestCandles }: LiveChartProps) {
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(false);
   const [now, setNow] = useState(0);
@@ -61,13 +65,14 @@ export function LiveChart({ pair, ticks, feedMode }: LiveChartProps) {
     return () => { clearTimeout(t); clearInterval(id); };
   }, []);
 
-  // ── Fetch candle history ───────────────────────────────────────────────────
+  // ── Fetch candle history (REST fallback) ──────────────────────────────────
+  // Only used if the upstream socket.io 'history' RPC fails or isn't available.
+  // Primary path is via onRequestCandles → cached candles prop.
   const fetchCandles = useCallback((targetPair: string, isFirstLoad: boolean = false) => {
     if (isFirstLoad) {
       setLoading(true);
-      setCandles([]);
     }
-    fetch(`/api/candles/${encodeURIComponent(targetPair)}?limit=120`)
+    fetch(`/api/candles/${encodeURIComponent(targetPair)}?limit=200`)
       .then(r => r.json())
       .then(data => {
         // Guard: if pair changed while fetching, discard
@@ -78,6 +83,24 @@ export function LiveChart({ pair, ticks, feedMode }: LiveChartProps) {
       })
       .catch(() => { setLoading(false); });
   }, []);
+
+  // ── Request candles when pair changes (delegates to hook, which caches) ──
+  useEffect(() => {
+    if (!pair) return;
+    if (onRequestCandles) {
+      onRequestCandles(pair);
+    }
+  }, [pair, onRequestCandles]);
+
+  // ── When cachedCandles prop changes for the current pair, adopt them ─────
+  useEffect(() => {
+    if (!pair || !cachedCandles) return;
+    if (currentPairRef.current !== pair) return;
+    // Only adopt if we have no candles yet OR the cached set is newer/larger
+    if (candles.length === 0 && cachedCandles.length > 0) {
+      setCandles(cachedCandles);
+    }
+  }, [cachedCandles, pair, candles.length]);
 
   // ── Chart lifecycle: DESTROY + RECREATE on every pair change ───────────────
   useEffect(() => {
@@ -178,17 +201,24 @@ export function LiveChart({ pair, ticks, feedMode }: LiveChartProps) {
         ro.disconnect();
       };
 
-      // Now fetch candle data for this pair (first load — resets candles state)
-      fetchCandles(pair, true);
+      // Use cached candles if available (instant pair switching — no refetch).
+      // Otherwise, fetch from REST API as fallback.
+      if (cachedCandles && cachedCandles.length > 0) {
+        setCandles(cachedCandles);
+      } else {
+        fetchCandles(pair, true);
+      }
     };
     createChart();
 
-    // Refresh history periodically (NOT first load — just append new candles)
+    // Refresh history periodically from REST (keeps DB-persisted candles fresh).
+    // The upstream cache + live ticks handle real-time; this is just a periodic
+    // sync to catch any candles that may have been missed.
     const refreshId = setInterval(() => {
       if (currentPairRef.current === pair) {
         fetchCandles(pair, false);
       }
-    }, 30000);
+    }, 60000);
 
     return () => {
       clearInterval(refreshId);
@@ -204,7 +234,7 @@ export function LiveChart({ pair, ticks, feedMode }: LiveChartProps) {
         seriesRef.current = null;
       }
     };
-  }, [pair, fetchCandles]);
+  }, [pair, fetchCandles, cachedCandles]);
 
   // ── RAF animation: smoothly tween the last candle ──────────────────────────
   const rafLoopRef = useRef<(ts: number) => void>(() => {});
