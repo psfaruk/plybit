@@ -1,0 +1,137 @@
+[feed] attempting live Quotex connection…
+[live-feed] warmup GET https://market-qx.trade/en/trade
+[live-feed] warmup OK — status=200, cookies=4
+[live-feed] connecting to wss://ws.market-qx.trade/socket.io/?EIO=4&transport=websocket
+[live-feed] WS open, sending Engine.IO CONNECT (40)
+[live-feed] Engine.IO open — sid=KtxuaGbj… ping=25000ms
+[live-feed] Socket.IO connected, sending authorization
+[live-feed] auth sent (session: r0mlZlk7…, 40 chars, isDemo=0)
+[live-feed] ✓ auth success (event: s_authorization)
+[live-feed] subscribe: BRLUSD_otc period=60
+[live-feed] subscribe: USDPKR_otc period=60
+[live-feed] subscribe: USDBDT_otc period=60
+[live-feed] subscribe: USDPHP_otc period=60
+[live-feed] subscribe: USDCHF_otc period=60
+[live-feed] subscribe: NZDCHF_otc period=60
+[live-feed] subscribe: NZDCAD_otc period=60
+[live-feed] subscribe: USDARS_otc period=60
+[live-feed] subscribe: USDCOP_otc period=60
+[live-feed] subscribe: USDMXN_otc period=60
+[live-feed] subscribe: GBPCHF_otc period=60
+[live-feed] subscribe: USDZAR_otc period=60
+[live-feed] subscribe: USDDZD_otc period=60
+[live-feed] subscribe: USDINR_otc period=60
+[live-feed] subscribe: AUDCHF_otc period=60
+[feed] ✓ LIVE mode active — real Quotex data streaming
+[boot] feed mode: live — Quotex live · 0 candles / 0 ticks
+[agent] 🤖 AI Agent starting — analysis every 5 minutes (GLM 5.2)
+[otc-engine] WebSocket server on port 3003
+[otc-engine] HTTP API server on port 3004
+[live-feed] event "pending/list" data: []
+[live-feed] event "s_indicator/list" data: {"favorites":[],"list":[]}
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",34],["USDCOP_otc",80],["USDDZD_otc",48],["USDARS_otc",3],["USDPHP_otc",8],["USDMXN_otc",4],["USDPKR_otc",77],["USDBDT_otc",3],["BRLUSD_otc",84],["NZDCAD_otc",97],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",35],["USDCOP_otc",80],["USDDZD_otc",51],["USDARS_otc",3],["USDPHP_otc",8],["USDMXN_otc",5],["USDPKR_otc",74],["USDBDT_otc",3],["BRLUSD_otc",95],["NZDCAD_otc",97],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",20],["USDCOP_otc",80],["USDDZD_otc",68],["USDARS_otc",3],["USDPHP_otc",8],["USDMXN_otc",5],["USDPKR_otc",70],["USDBDT_otc",5],["BRLUSD_otc",95],["NZDCAD_otc",97],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",23],["USDCOP_otc",69],["USDDZD_otc",68],["USDARS_otc",3],["USDPHP_otc",9],["USDMXN_otc",5],["USDPKR_otc",85],["USDBDT_otc",2],["BRLUSD_otc",90],["NZDCAD_otc",96],["NZD
+[io] connect lW1aPrHKPee4NmycAAAB
+[db] Opened /home/z/my-project/db/custom.db
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",23],["USDCOP_otc",64],["USDDZD_otc",68],["USDARS_otc",8],["USDPHP_otc",9],["USDMXN_otc",5],["USDPKR_otc",96],["USDBDT_otc",2],["BRLUSD_otc",87],["NZDCAD_otc",96],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",23],["USDCOP_otc",53],["USDDZD_otc",68],["USDARS_otc",9],["USDPHP_otc",9],["USDMXN_otc",6],["USDPKR_otc",96],["USDBDT_otc",2],["BRLUSD_otc",88],["NZDCAD_otc",96],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",23],["USDCOP_otc",53],["USDDZD_otc",68],["USDARS_otc",9],["USDPHP_otc",10],["USDMXN_otc",6],["USDPKR_otc",96],["USDBDT_otc",2],["BRLUSD_otc",91],["NZDCAD_otc",96],["NZ
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",23],["USDCOP_otc",53],["USDDZD_otc",72],["USDARS_otc",8],["USDPHP_otc",10],["USDMXN_otc",6],["USDPKR_otc",91],["USDBDT_otc",4],["BRLUSD_otc",86],["NZDCAD_otc",96],["NZ
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",23],["USDCOP_otc",53],["USDDZD_otc",72],["USDARS_otc",8],["USDPHP_otc",10],["USDMXN_otc",4],["USDPKR_otc",97],["USDBDT_otc",46],["BRLUSD_otc",86],["NZDCAD_otc",96],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",23],["USDCOP_otc",53],["USDDZD_otc",72],["USDARS_otc",8],["USDPHP_otc",10],["USDMXN_otc",4],["USDPKR_otc",87],["USDBDT_otc",47],["BRLUSD_otc",83],["NZDCAD_otc",96],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",10],["USDCOP_otc",53],["USDDZD_otc",75],["USDARS_otc",3],["USDPHP_otc",8],["USDMXN_otc",4],["USDPKR_otc",88],["USDBDT_otc",44],["BRLUSD_otc",84],["NZDCAD_otc",96],["NZ
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",4],["USDCOP_otc",53],["USDDZD_otc",75],["USDARS_otc",3],["USDPHP_otc",7],["USDMXN_otc",4],["USDPKR_otc",90],["USDBDT_otc",37],["BRLUSD_otc",84],["NZDCAD_otc",96],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",4],["USDCOP_otc",53],["USDDZD_otc",76],["USDARS_otc",3],["USDPHP_otc",7],["USDMXN_otc",4],["USDPKR_otc",90],["USDBDT_otc",28],["BRLUSD_otc",85],["NZDCAD_otc",96],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",4],["USDCOP_otc",55],["USDDZD_otc",95],["USDARS_otc",3],["USDPHP_otc",7],["USDMXN_otc",4],["USDPKR_otc",87],["USDBDT_otc",19],["BRLUSD_otc",74],["NZDCAD_otc",91],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",4],["USDCOP_otc",55],["USDDZD_otc",95],["USDARS_otc",3],["USDPHP_otc",7],["USDMXN_otc",4],["USDPKR_otc",80],["USDBDT_otc",10],["BRLUSD_otc",73],["NZDCAD_otc",81],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",4],["USDCOP_otc",55],["USDDZD_otc",95],["USDARS_otc",3],["USDPHP_otc",7],["USDMXN_otc",4],["USDPKR_otc",71],["USDBDT_otc",9],["BRLUSD_otc",88],["NZDCAD_otc",68],["NZDC
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",4],["USDCOP_otc",55],["USDDZD_otc",93],["USDARS_otc",3],["USDPHP_otc",6],["USDMXN_otc",4],["USDPKR_otc",73],["USDBDT_otc",7],["BRLUSD_otc",95],["NZDCAD_otc",54],["NZDC
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",4],["USDCOP_otc",55],["USDDZD_otc",89],["USDARS_otc",3],["USDPHP_otc",6],["USDMXN_otc",4],["USDPKR_otc",74],["USDBDT_otc",4],["BRLUSD_otc",96],["NZDCAD_otc",51],["NZDC
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",4],["USDCOP_otc",55],["USDDZD_otc",84],["USDARS_otc",3],["USDPHP_otc",6],["USDMXN_otc",4],["USDPKR_otc",72],["USDBDT_otc",10],["BRLUSD_otc",96],["NZDCAD_otc",60],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",4],["USDCOP_otc",55],["USDDZD_otc",84],["USDARS_otc",3],["USDPHP_otc",6],["USDMXN_otc",4],["USDPKR_otc",77],["USDBDT_otc",11],["BRLUSD_otc",92],["NZDCAD_otc",65],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",4],["USDCOP_otc",55],["USDDZD_otc",84],["USDARS_otc",4],["USDPHP_otc",6],["USDMXN_otc",4],["USDPKR_otc",77],["USDBDT_otc",2],["BRLUSD_otc",93],["NZDCAD_otc",73],["NZDC
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",4],["USDCOP_otc",55],["USDDZD_otc",84],["USDARS_otc",4],["USDPHP_otc",3],["USDMXN_otc",4],["USDPKR_otc",72],["USDBDT_otc",15],["BRLUSD_otc",94],["NZDCAD_otc",80],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",4],["USDCOP_otc",55],["USDDZD_otc",84],["USDARS_otc",4],["USDPHP_otc",3],["USDMXN_otc",4],["USDPKR_otc",72],["USDBDT_otc",4],["BRLUSD_otc",96],["NZDCAD_otc",89],["NZDC
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",4],["USDCOP_otc",55],["USDDZD_otc",87],["USDARS_otc",6],["USDPHP_otc",3],["USDMXN_otc",4],["USDPKR_otc",77],["USDBDT_otc",3],["BRLUSD_otc",85],["NZDCAD_otc",96],["NZDC
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",4],["USDCOP_otc",55],["USDDZD_otc",96],["USDARS_otc",10],["USDPHP_otc",5],["USDMXN_otc",4],["USDPKR_otc",84],["USDBDT_otc",4],["BRLUSD_otc",86],["NZDCAD_otc",96],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",92],["USDZAR_otc",28],["USDCOP_otc",59],["USDDZD_otc",95],["USDARS_otc",31],["USDPHP_otc",9],["USDMXN_otc",6],["USDPKR_otc",11],["USDBDT_otc",58],["BRLUSD_otc",96],["NZDCAD_otc",96],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",94],["USDZAR_otc",33],["USDCOP_otc",61],["USDDZD_otc",91],["USDARS_otc",34],["USDPHP_otc",7],["USDMXN_otc",4],["USDPKR_otc",11],["USDBDT_otc",50],["BRLUSD_otc",91],["NZDCAD_otc",93],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",94],["USDZAR_otc",41],["USDCOP_otc",61],["USDDZD_otc",88],["USDARS_otc",42],["USDPHP_otc",9],["USDMXN_otc",4],["USDPKR_otc",13],["USDBDT_otc",72],["BRLUSD_otc",66],["NZDCAD_otc",96],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",94],["USDZAR_otc",41],["USDCOP_otc",63],["USDDZD_otc",88],["USDARS_otc",47],["USDPHP_otc",9],["USDMXN_otc",4],["USDPKR_otc",4],["USDBDT_otc",65],["BRLUSD_otc",70],["NZDCAD_otc",96],["NZ
+[live-feed] event "depth/change" data: [["GBPCHF_otc",94],["USDZAR_otc",46],["USDCOP_otc",72],["USDDZD_otc",88],["USDARS_otc",51],["USDPHP_otc",9],["USDMXN_otc",4],["USDPKR_otc",4],["USDBDT_otc",65],["BRLUSD_otc",64],["NZDCAD_otc",96],["NZ
+[live-feed] event "depth/change" data: [["GBPCHF_otc",94],["USDZAR_otc",39],["USDCOP_otc",91],["USDDZD_otc",96],["USDARS_otc",56],["USDPHP_otc",9],["USDMXN_otc",6],["USDPKR_otc",4],["USDBDT_otc",63],["BRLUSD_otc",66],["NZDCAD_otc",96],["NZ
+[live-feed] event "depth/change" data: [["GBPCHF_otc",97],["USDZAR_otc",40],["USDCOP_otc",96],["USDDZD_otc",96],["USDARS_otc",49],["USDPHP_otc",6],["USDMXN_otc",4],["USDPKR_otc",2],["USDBDT_otc",81],["BRLUSD_otc",68],["NZDCAD_otc",96],["NZ
+[live-feed] event "depth/change" data: [["GBPCHF_otc",97],["USDZAR_otc",38],["USDCOP_otc",96],["USDDZD_otc",96],["USDARS_otc",36],["USDPHP_otc",6],["USDMXN_otc",6],["USDPKR_otc",2],["USDBDT_otc",88],["BRLUSD_otc",59],["NZDCAD_otc",96],["NZ
+[live-feed] event "depth/change" data: [["GBPCHF_otc",97],["USDZAR_otc",42],["USDCOP_otc",92],["USDDZD_otc",96],["USDARS_otc",26],["USDPHP_otc",6],["USDMXN_otc",8],["USDPKR_otc",7],["USDBDT_otc",95],["BRLUSD_otc",66],["NZDCAD_otc",96],["NZ
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",42],["USDCOP_otc",90],["USDDZD_otc",96],["USDARS_otc",14],["USDPHP_otc",7],["USDMXN_otc",8],["USDPKR_otc",3],["USDBDT_otc",81],["BRLUSD_otc",59],["NZDCAD_otc",96],["NZ
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",43],["USDCOP_otc",90],["USDDZD_otc",91],["USDARS_otc",5],["USDPHP_otc",7],["USDMXN_otc",8],["USDPKR_otc",2],["USDBDT_otc",82],["BRLUSD_otc",59],["NZDCAD_otc",94],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",43],["USDCOP_otc",90],["USDDZD_otc",96],["USDARS_otc",4],["USDPHP_otc",7],["USDMXN_otc",7],["USDPKR_otc",6],["USDBDT_otc",74],["BRLUSD_otc",53],["NZDCAD_otc",98],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",43],["USDCOP_otc",90],["USDDZD_otc",94],["USDARS_otc",4],["USDPHP_otc",7],["USDMXN_otc",9],["USDPKR_otc",3],["USDBDT_otc",72],["BRLUSD_otc",54],["NZDCAD_otc",98],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",43],["USDCOP_otc",90],["USDDZD_otc",91],["USDARS_otc",4],["USDPHP_otc",7],["USDMXN_otc",9],["USDPKR_otc",3],["USDBDT_otc",66],["BRLUSD_otc",48],["NZDCAD_otc",98],["NZD
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",40],["USDCOP_otc",85],["USDDZD_otc",91],["USDARS_otc",10],["USDPHP_otc",7],["USDMXN_otc",7],["USDPKR_otc",12],["USDBDT_otc",60],["BRLUSD_otc",46],["NZDCAD_otc",98],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",18],["USDCOP_otc",83],["USDDZD_otc",91],["USDARS_otc",17],["USDPHP_otc",7],["USDMXN_otc",17],["USDPKR_otc",20],["USDBDT_otc",75],["BRLUSD_otc",55],["NZDCAD_otc",98],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",13],["USDCOP_otc",81],["USDDZD_otc",91],["USDARS_otc",18],["USDPHP_otc",4],["USDMXN_otc",27],["USDPKR_otc",29],["USDBDT_otc",59],["BRLUSD_otc",53],["NZDCAD_otc",98],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",76],["USDDZD_otc",97],["USDARS_otc",37],["USDPHP_otc",4],["USDMXN_otc",38],["USDPKR_otc",28],["USDBDT_otc",44],["BRLUSD_otc",62],["NZDCAD_otc",97],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",76],["USDDZD_otc",97],["USDARS_otc",44],["USDPHP_otc",4],["USDMXN_otc",48],["USDPKR_otc",32],["USDBDT_otc",42],["BRLUSD_otc",62],["NZDCAD_otc",97],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",76],["USDDZD_otc",96],["USDARS_otc",47],["USDPHP_otc",4],["USDMXN_otc",55],["USDPKR_otc",32],["USDBDT_otc",46],["BRLUSD_otc",61],["NZDCAD_otc",97],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",4],["USDCOP_otc",76],["USDDZD_otc",96],["USDARS_otc",42],["USDPHP_otc",4],["USDMXN_otc",65],["USDPKR_otc",32],["USDBDT_otc",59],["BRLUSD_otc",67],["NZDCAD_otc",97],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",76],["USDDZD_otc",96],["USDARS_otc",46],["USDPHP_otc",4],["USDMXN_otc",77],["USDPKR_otc",31],["USDBDT_otc",74],["BRLUSD_otc",80],["NZDCAD_otc",97],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",8],["USDCOP_otc",76],["USDDZD_otc",96],["USDARS_otc",50],["USDPHP_otc",4],["USDMXN_otc",77],["USDPKR_otc",36],["USDBDT_otc",82],["BRLUSD_otc",88],["NZDCAD_otc",94],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",9],["USDCOP_otc",76],["USDDZD_otc",96],["USDARS_otc",53],["USDPHP_otc",4],["USDMXN_otc",74],["USDPKR_otc",25],["USDBDT_otc",74],["BRLUSD_otc",82],["NZDCAD_otc",93],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",9],["USDCOP_otc",76],["USDDZD_otc",96],["USDARS_otc",60],["USDPHP_otc",4],["USDMXN_otc",70],["USDPKR_otc",26],["USDBDT_otc",68],["BRLUSD_otc",80],["NZDCAD_otc",95],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",11],["USDCOP_otc",79],["USDDZD_otc",96],["USDARS_otc",62],["USDPHP_otc",4],["USDMXN_otc",76],["USDPKR_otc",4],["USDBDT_otc",71],["BRLUSD_otc",78],["NZDCAD_otc",95],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",16],["USDCOP_otc",81],["USDDZD_otc",96],["USDARS_otc",64],["USDPHP_otc",4],["USDMXN_otc",82],["USDPKR_otc",4],["USDBDT_otc",68],["BRLUSD_otc",74],["NZDCAD_otc",96],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",19],["USDCOP_otc",81],["USDDZD_otc",96],["USDARS_otc",58],["USDPHP_otc",4],["USDMXN_otc",92],["USDPKR_otc",8],["USDBDT_otc",68],["BRLUSD_otc",69],["NZDCAD_otc",90],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",21],["USDCOP_otc",79],["USDDZD_otc",96],["USDARS_otc",53],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",21],["USDBDT_otc",71],["BRLUSD_otc",63],["NZDCAD_otc",90],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",21],["USDCOP_otc",68],["USDDZD_otc",96],["USDARS_otc",45],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",28],["USDBDT_otc",74],["BRLUSD_otc",60],["NZDCAD_otc",91],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",19],["USDCOP_otc",58],["USDDZD_otc",96],["USDARS_otc",45],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",35],["USDBDT_otc",80],["BRLUSD_otc",68],["NZDCAD_otc",91],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",12],["USDCOP_otc",56],["USDDZD_otc",97],["USDARS_otc",34],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",47],["USDBDT_otc",65],["BRLUSD_otc",75],["NZDCAD_otc",91],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",56],["USDDZD_otc",97],["USDARS_otc",34],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",57],["USDBDT_otc",52],["BRLUSD_otc",77],["NZDCAD_otc",91],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",56],["USDDZD_otc",97],["USDARS_otc",32],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",64],["USDBDT_otc",43],["BRLUSD_otc",78],["NZDCAD_otc",91],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",53],["USDDZD_otc",97],["USDARS_otc",32],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",68],["USDBDT_otc",50],["BRLUSD_otc",76],["NZDCAD_otc",91],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",50],["USDDZD_otc",97],["USDARS_otc",31],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",67],["USDBDT_otc",47],["BRLUSD_otc",83],["NZDCAD_otc",88],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",48],["USDDZD_otc",97],["USDARS_otc",28],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",71],["USDBDT_otc",52],["BRLUSD_otc",82],["NZDCAD_otc",88],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",48],["USDDZD_otc",97],["USDARS_otc",28],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",65],["USDBDT_otc",57],["BRLUSD_otc",90],["NZDCAD_otc",88],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",48],["USDDZD_otc",94],["USDARS_otc",35],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",67],["USDBDT_otc",68],["BRLUSD_otc",96],["NZDCAD_otc",88],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",48],["USDDZD_otc",90],["USDARS_otc",36],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",76],["USDBDT_otc",85],["BRLUSD_otc",96],["NZDCAD_otc",88],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",48],["USDDZD_otc",91],["USDARS_otc",47],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",85],["USDBDT_otc",96],["BRLUSD_otc",91],["NZDCAD_otc",88],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",48],["USDDZD_otc",97],["USDARS_otc",56],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",92],["USDBDT_otc",96],["BRLUSD_otc",98],["NZDCAD_otc",88],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",48],["USDDZD_otc",97],["USDARS_otc",57],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",97],["USDBDT_otc",97],["BRLUSD_otc",93],["NZDCAD_otc",88],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",48],["USDDZD_otc",96],["USDARS_otc",50],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",96],["USDBDT_otc",74],["BRLUSD_otc",88],["NZDCAD_otc",88],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",50],["USDDZD_otc",93],["USDARS_otc",49],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",96],["USDBDT_otc",79],["BRLUSD_otc",81],["NZDCAD_otc",81],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",52],["USDDZD_otc",89],["USDARS_otc",45],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",97],["USDBDT_otc",69],["BRLUSD_otc",72],["NZDCAD_otc",81],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",59],["USDDZD_otc",95],["USDARS_otc",41],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",97],["USDBDT_otc",72],["BRLUSD_otc",69],["NZDCAD_otc",81],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",60],["USDDZD_otc",97],["USDARS_otc",41],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",97],["USDBDT_otc",87],["BRLUSD_otc",60],["NZDCAD_otc",81],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",66],["USDDZD_otc",97],["USDARS_otc",42],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",97],["USDBDT_otc",92],["BRLUSD_otc",52],["NZDCAD_otc",81],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",68],["USDDZD_otc",96],["USDARS_otc",42],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",97],["USDBDT_otc",97],["BRLUSD_otc",33],["NZDCAD_otc",81],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",71],["USDDZD_otc",94],["USDARS_otc",42],["USDPHP_otc",4],["USDMXN_otc",96],["USDPKR_otc",92],["USDBDT_otc",97],["BRLUSD_otc",23],["NZDCAD_otc",81],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",4],["USDCOP_otc",71],["USDDZD_otc",92],["USDARS_otc",44],["USDPHP_otc",7],["USDMXN_otc",97],["USDPKR_otc",96],["USDBDT_otc",91],["BRLUSD_otc",24],["NZDCAD_otc",81],["N
+[io] disconnect lW1aPrHKPee4NmycAAAB
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",11],["USDCOP_otc",71],["USDDZD_otc",92],["USDARS_otc",44],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",95],["USDBDT_otc",98],["BRLUSD_otc",21],["NZDCAD_otc",81],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",98],["USDZAR_otc",14],["USDCOP_otc",71],["USDDZD_otc",92],["USDARS_otc",44],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",93],["USDBDT_otc",96],["BRLUSD_otc",11],["NZDCAD_otc",81],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",16],["USDCOP_otc",71],["USDDZD_otc",92],["USDARS_otc",44],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",96],["USDBDT_otc",96],["BRLUSD_otc",6],["NZDCAD_otc",82],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",11],["USDCOP_otc",71],["USDDZD_otc",92],["USDARS_otc",44],["USDPHP_otc",4],["USDMXN_otc",97],["USDPKR_otc",82],["USDBDT_otc",96],["BRLUSD_otc",3],["NZDCAD_otc",82],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",11],["USDCOP_otc",69],["USDDZD_otc",92],["USDARS_otc",44],["USDPHP_otc",12],["USDMXN_otc",97],["USDPKR_otc",93],["USDBDT_otc",96],["BRLUSD_otc",3],["NZDCAD_otc",82],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",11],["USDCOP_otc",68],["USDDZD_otc",92],["USDARS_otc",44],["USDPHP_otc",12],["USDMXN_otc",97],["USDPKR_otc",93],["USDBDT_otc",96],["BRLUSD_otc",6],["NZDCAD_otc",82],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",5],["USDCOP_otc",62],["USDDZD_otc",97],["USDARS_otc",40],["USDPHP_otc",12],["USDMXN_otc",97],["USDPKR_otc",75],["USDBDT_otc",90],["BRLUSD_otc",4],["NZDCAD_otc",82],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",95],["USDZAR_otc",5],["USDCOP_otc",59],["USDDZD_otc",97],["USDARS_otc",46],["USDPHP_otc",12],["USDMXN_otc",97],["USDPKR_otc",86],["USDBDT_otc",96],["BRLUSD_otc",4],["NZDCAD_otc",82],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",89],["USDZAR_otc",14],["USDCOP_otc",43],["USDDZD_otc",96],["USDARS_otc",90],["USDPHP_otc",65],["USDMXN_otc",96],["USDPKR_otc",8],["USDBDT_otc",63],["BRLUSD_otc",93],["NZDCAD_otc",64],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",89],["USDZAR_otc",4],["USDCOP_otc",23],["USDDZD_otc",91],["USDARS_otc",92],["USDPHP_otc",65],["USDMXN_otc",96],["USDPKR_otc",10],["USDBDT_otc",51],["BRLUSD_otc",96],["NZDCAD_otc",64],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",92],["USDZAR_otc",7],["USDCOP_otc",14],["USDDZD_otc",85],["USDARS_otc",77],["USDPHP_otc",65],["USDMXN_otc",96],["USDPKR_otc",4],["USDBDT_otc",48],["BRLUSD_otc",89],["NZDCAD_otc",62],["N
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",12],["USDDZD_otc",82],["USDARS_otc",78],["USDPHP_otc",65],["USDMXN_otc",96],["USDPKR_otc",16],["USDBDT_otc",40],["BRLUSD_otc",98],["NZDCAD_otc",60],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",22],["USDDZD_otc",77],["USDARS_otc",82],["USDPHP_otc",65],["USDMXN_otc",96],["USDPKR_otc",28],["USDBDT_otc",34],["BRLUSD_otc",98],["NZDCAD_otc",60],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",32],["USDDZD_otc",77],["USDARS_otc",84],["USDPHP_otc",63],["USDMXN_otc",96],["USDPKR_otc",36],["USDBDT_otc",30],["BRLUSD_otc",98],["NZDCAD_otc",60],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",40],["USDDZD_otc",72],["USDARS_otc",80],["USDPHP_otc",63],["USDMXN_otc",96],["USDPKR_otc",45],["USDBDT_otc",28],["BRLUSD_otc",98],["NZDCAD_otc",70],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",42],["USDDZD_otc",70],["USDARS_otc",77],["USDPHP_otc",60],["USDMXN_otc",96],["USDPKR_otc",47],["USDBDT_otc",25],["BRLUSD_otc",90],["NZDCAD_otc",91],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",47],["USDDZD_otc",62],["USDARS_otc",74],["USDPHP_otc",43],["USDMXN_otc",96],["USDPKR_otc",46],["USDBDT_otc",24],["BRLUSD_otc",90],["NZDCAD_otc",96],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",49],["USDDZD_otc",54],["USDARS_otc",73],["USDPHP_otc",39],["USDMXN_otc",96],["USDPKR_otc",55],["USDBDT_otc",22],["BRLUSD_otc",84],["NZDCAD_otc",96],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",73],["USDDZD_otc",54],["USDARS_otc",78],["USDPHP_otc",39],["USDMXN_otc",97],["USDPKR_otc",57],["USDBDT_otc",15],["BRLUSD_otc",86],["NZDCAD_otc",96],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",79],["USDDZD_otc",66],["USDARS_otc",78],["USDPHP_otc",39],["USDMXN_otc",97],["USDPKR_otc",51],["USDBDT_otc",24],["BRLUSD_otc",91],["NZDCAD_otc",71],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",77],["USDDZD_otc",72],["USDARS_otc",82],["USDPHP_otc",41],["USDMXN_otc",97],["USDPKR_otc",33],["USDBDT_otc",24],["BRLUSD_otc",94],["NZDCAD_otc",73],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",79],["USDDZD_otc",74],["USDARS_otc",83],["USDPHP_otc",42],["USDMXN_otc",97],["USDPKR_otc",25],["USDBDT_otc",24],["BRLUSD_otc",96],["NZDCAD_otc",75],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",73],["USDDZD_otc",80],["USDARS_otc",82],["USDPHP_otc",42],["USDMXN_otc",97],["USDPKR_otc",24],["USDBDT_otc",24],["BRLUSD_otc",92],["NZDCAD_otc",82],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",69],["USDDZD_otc",80],["USDARS_otc",77],["USDPHP_otc",47],["USDMXN_otc",97],["USDPKR_otc",25],["USDBDT_otc",37],["BRLUSD_otc",90],["NZDCAD_otc",92],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",96],["USDZAR_otc",4],["USDCOP_otc",67],["USDDZD_otc",80],["USDARS_otc",82],["USDPHP_otc",49],["USDMXN_otc",97],["USDPKR_otc",32],["USDBDT_otc",70],["BRLUSD_otc",68],["NZDCAD_otc",97],["
+[live-feed] event "depth/change" data: [["GBPCHF_otc",93],["USDZAR_otc",4],["USDCOP_otc",67],["USDDZD_otc",80],["USDARS_otc",68],["USDPHP_otc",50],["USDMXN_otc",91],["USDPKR_otc",27],["USDBDT_otc",91],["BRLUSD_otc",60],["NZDCAD_otc",97],["
