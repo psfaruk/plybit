@@ -10,17 +10,41 @@ echo "=== [railway] Time: $(date -u) ==="
 
 cd /app
 
-# ── Push database schema ──
-echo "=== [railway] Setting up database ==="
-bunx prisma db push 2>/dev/null || echo "[railway] db push skipped"
+# ── Ensure /app/db directory exists (Prisma needs this for SQLite) ──
+mkdir -p /app/db
 
-# ── Write .env from Railway env vars ──
+# ── Write .env FIRST (before prisma db push needs DATABASE_URL) ──
 cat > /app/.env << EOF
 DATABASE_URL=file:/app/db/custom.db
 QX_TOKEN=${QX_TOKEN:-}
 QX_COOKIES=${QX_COOKIES:-}
 QX_IS_DEMO=${QX_IS_DEMO:-0}
+MINI_SERVICE_URL=http://localhost:3003
 EOF
+
+# Export vars so subprocesses (prisma, node) inherit them too
+export DATABASE_URL=file:/app/db/custom.db
+export QX_TOKEN="${QX_TOKEN:-}"
+export QX_COOKIES="${QX_COOKIES:-}"
+export QX_IS_DEMO="${QX_IS_DEMO:-0}"
+export MINI_SERVICE_URL=http://localhost:3003
+
+echo "=== [railway] Environment ==="
+echo "  DATABASE_URL=$DATABASE_URL"
+echo "  QX_TOKEN length: ${#QX_TOKEN}"
+echo "  QX_COOKIES length: ${#QX_COOKIES}"
+echo "  QX_IS_DEMO=$QX_IS_DEMO"
+
+# ── Push database schema (now .env exists, prisma will find DATABASE_URL) ──
+echo "=== [railway] Setting up database ==="
+bunx prisma db push --accept-data-loss 2>&1 | tail -10 || echo "[railway] db push failed (continuing)"
+
+# ── Verify DB is writable ──
+if [ -f /app/db/custom.db ]; then
+  echo "=== [railway] DB file exists: $(ls -la /app/db/custom.db) ==="
+else
+  echo "=== [railway] WARN: DB file not created, prisma may not have initialized properly ==="
+fi
 
 # ── Start mini-service (background — connects to Quotex, writes to DB) ──
 echo "=== [railway] Starting mini-service (port 3003, internal) ==="
@@ -30,7 +54,11 @@ MINI_PID=$!
 disown $MINI_PID
 echo "[railway] Mini-service PID: $MINI_PID"
 
-sleep 3
+sleep 5
+
+# Show mini-service startup log so we can debug if Quotex auth fails
+echo "=== [railway] Mini-service startup log (last 15 lines) ==="
+tail -15 /tmp/mini-service.log 2>/dev/null || echo "(no log yet)"
 
 # ── Start custom server.js (Next.js + Socket.io on same port) ──
 # Uses Node.js (NOT Bun — Bun crashes with stack smashing on standalone server)
