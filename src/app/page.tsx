@@ -121,8 +121,8 @@ export default function Home() {
               <h1 className="text-base sm:text-lg font-bold leading-tight truncate">OTC Binary Signals</h1>
               <p className="text-xs text-muted-foreground truncate hidden sm:block">
                 {effectivePair
-                  ? `${effectivePair.replace('-OTC', '')} · OTC · 5M expiry`
-                  : 'Real-time multi-engine analysis · 5M expiry'}
+                  ? `${effectivePair.replace('-OTC', '')} · OTC · 1M expiry`
+                  : 'Real-time multi-engine analysis · 1M expiry'}
               </p>
             </div>
           </div>
@@ -319,8 +319,8 @@ export default function Home() {
             {decidedSignals.length === 0 ? (
               <div className="text-center py-12 text-sm text-muted-foreground border rounded-lg bg-card/30">
                 {effectivePair
-                  ? `No closed signals yet for ${effectivePair.replace('-OTC', '')}. WIN/LOSS results will appear here after the 5-minute expiry.`
-                  : 'No closed signals yet. WIN/LOSS results will appear here after the 5-minute expiry.'}
+                  ? `No closed signals yet for ${effectivePair.replace('-OTC', '')}. WIN/LOSS results will appear here after the 1-minute expiry.`
+                  : 'No closed signals yet. WIN/LOSS results will appear here after the 1-minute expiry.'}
               </div>
             ) : (
               <>

@@ -105,7 +105,8 @@ let feedStatus: FeedStatus;
 // State
 // ─────────────────────────────────────────────────────────────────────────────
 const lastSignalPerPair = new Map<string, number>(); // pair → last signal timestamp
-const SIGNAL_COOLDOWN_SEC = 240; // max one signal per pair per 4 minutes
+const SIGNAL_COOLDOWN_SEC = 60; // one signal per pair per 1-minute candle (matches candle period)
+const SIGNAL_EXPIRY_SEC = 60; // signal expires when the current 1-minute candle closes
 
 // track which clients are subscribed to which pairs
 const clientSubs = new Map<string, Set<string>>();
@@ -252,6 +253,16 @@ function runAlgorithmDetection(pair: string, candles: Candle[]): DetectionResult
 }
 
 // ── V2 signal emission (using the prediction engine) ─────────────────────────
+//
+// SIGNAL TIMING (CRITICAL — this is the app's main goal):
+//   - Signals are generated when a 1-minute candle CLOSES (= next candle OPENS)
+//   - Entry price = close of the just-closed candle = open of the new candle
+//   - Signal timestamp = now = second 0 of the new candle
+//   - Expiry = 60 seconds = when the new candle closes
+//   - Validator checks the candle that closes at timestamp + 60
+//
+// This means each signal predicts the direction of the candle that JUST STARTED,
+// and is validated when that candle closes — exactly 1 minute later.
 function maybeEmitSignalV2(pred: import('./src/engine-types').PredictionResult): void {
   if (pred.signal === 'NEUTRAL') return;
   const now = Math.floor(Date.now() / 1000);
@@ -260,7 +271,10 @@ function maybeEmitSignalV2(pred: import('./src/engine-types').PredictionResult):
   lastSignalPerPair.set(pred.asset, now);
 
   const id = randomUUID();
-  const entryPrice = feed.getHistory(pred.asset).slice(-1)[0]?.close || 0;
+  // Entry price = close of the just-closed candle = open of the new candle.
+  // This is the price at second 0 of the new candle.
+  const history = feed.getHistory(pred.asset);
+  const entryPrice = history.slice(-1)[0]?.close || 0;
 
   // Convert PredictionResult to the format expected by DB + UI
   const votes = Object.entries(pred.modules).map(([name, info]) => ({
@@ -271,6 +285,7 @@ function maybeEmitSignalV2(pred: import('./src/engine-types').PredictionResult):
     reason: info.reasons[0] || '',
   }));
 
+  // Expiry = 60 seconds = the new candle closes at timestamp + 60
   insertSignal({
     id,
     timestamp: now,
@@ -279,7 +294,7 @@ function maybeEmitSignalV2(pred: import('./src/engine-types').PredictionResult):
     signal: pred.signal,
     entryPrice,
     strength: pred.confidence / 100,
-    expiry: 300,
+    expiry: SIGNAL_EXPIRY_SEC,
     modulesVotes: JSON.stringify(votes),
   });
 
@@ -291,10 +306,18 @@ function maybeEmitSignalV2(pred: import('./src/engine-types').PredictionResult):
     signal: pred.signal,
     strength: pred.confidence / 100,
     entry: entryPrice,
-    expiry: 300,
+    expiry: SIGNAL_EXPIRY_SEC,
     votes,
   });
-  console.log(`[signal-v2] ${pred.asset} ${pred.signal} conf=${pred.confidence} str=${pred.strength} agree=${pred.agree}/${pred.total}`);
+
+  // Log with candle timing context for debugging
+  const candleOpenTime = Math.floor(now / 60) * 60;
+  const candleCloseTime = candleOpenTime + 60;
+  console.log(
+    `[signal-v2] ${pred.asset} ${pred.signal} conf=${pred.confidence} str=${pred.strength} agree=${pred.agree}/${pred.total} | ` +
+    `candle:${new Date(candleOpenTime * 1000).toISOString().slice(11, 19)}→${new Date(candleCloseTime * 1000).toISOString().slice(11, 19)} | ` +
+    `entry=${entryPrice} expires=${candleCloseTime}`
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

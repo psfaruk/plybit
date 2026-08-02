@@ -1,6 +1,12 @@
 // Signal Validator — checks pending signals after their expiry elapses
 // and marks them WIN / LOSS / TIMEOUT.
 //
+// SIGNAL TIMING (matches the app's main goal):
+//   - Signal generated at candle OPEN (second 0 of the minute)
+//   - Signal expiry = 60 seconds = when that candle CLOSES
+//   - Validator checks: candle.time < expiryTs (the candle must be CLOSED)
+//   - Result = compare candle.close vs signal.entryPrice (the open of that candle)
+//
 // FALLBACK: if no closed candle is available at the expiry timestamp (e.g.
 // the feed was temporarily disconnected), the validator uses the LATEST
 // candle in DB for that pair. This prevents signals from staying PENDING
@@ -9,7 +15,9 @@
 import { getCandleAtOrBefore, getPendingSignals, updateSignalResult, db } from './store';
 import type { Candle } from './types';
 
-const TICK_INTERVAL_MS = 15_000;
+// Run every 5 seconds so signals are validated within ~5s of candle close.
+// (15s was too slow for 1-minute signals — users would see PENDING for too long.)
+const TICK_INTERVAL_MS = 5_000;
 
 export function startValidator(): NodeJS.Timeout {
   const tick = () => {
@@ -58,7 +66,7 @@ export function startValidator(): NodeJS.Timeout {
         }
 
         updateSignalResult(sig.id, result, candle.close);
-        console.log(`[validator] ${sig.pair} ${sig.signal} → ${result} @ ${candle.close} (entry=${sig.entryPrice})`);
+        console.log(`[validator] ${sig.pair} ${sig.signal} → ${result} @ ${candle.close} (entry=${sig.entryPrice}, expiry=${expiryTs})`);
       }
     } catch (err) {
       console.error('[validator] error', err);
