@@ -11,6 +11,7 @@ tsconfig.tsbuildinfo
 .env.production
 .env.*.local
 session.json
+.z-ai-config
 
 # Database (live data, not for version control)
 db/*.db

@@ -26,13 +26,38 @@ const MAX_WEIGHT = 2.0;
 const MIN_WEIGHT = 0.1;
 
 let zaiInstance: any = null;
+let zaiInitFailed = false;
 let agentTimer: Timer | null = null;
 let ioRef: any = null;
 
-async function getZai() {
+async function getZai(): Promise<any | null> {
+  if (zaiInitFailed) return null;
   if (!zaiInstance) {
-    zaiInstance = await ZAI.create();
-    console.log('[agent] 🤖 ZAI SDK (GLM 5.2) initialized');
+    try {
+      zaiInstance = await ZAI.create();
+      console.log('[agent] 🤖 ZAI SDK (GLM 5.2) initialized');
+    } catch (e: any) {
+      zaiInitFailed = true;
+      console.error('[agent] ✗ ZAI SDK init failed:', e.message);
+      console.error('[agent]   Config file .z-ai-config not found.');
+      console.error('[agent]   On Railway: set ZAI_API_KEY env var, or the railway-start.sh');
+      console.error('[agent]   script will create a default config using ZAI_API_KEY=Z.ai');
+      console.error('[agent]   Local dev: create .z-ai-config in project root with:');
+      console.error('[agent]     {"baseUrl":"https://internal-api.z.ai/v1","apiKey":"Z.ai"}');
+      // Log to agent actions so the user sees it in the UI
+      logAgentAction({
+        actionType: 'INSIGHT',
+        scope: 'GLOBAL',
+        summary: `AI Agent: ZAI SDK init failed — ${e.message}`,
+        details: {
+          error: e.message,
+          fix: 'Set ZAI_API_KEY env var on Railway, or create .z-ai-config file locally',
+          configPathsChecked: ['./.z-ai-config', '~/.z-ai-config', '/etc/.z-ai-config']
+        },
+        severity: 'critical',
+      });
+      return null;
+    }
   }
   return zaiInstance;
 }
@@ -396,6 +421,13 @@ async function runAnalysisCycle() {
 
     const prompt = buildPrompt(state);
     const zai = await getZai();
+
+    // If ZAI SDK failed to init, skip LLM analysis but still run streak detection
+    // + token health check + daily report (those don't need the LLM).
+    if (!zai) {
+      console.log('[agent] skipping LLM analysis (ZAI SDK not available)');
+      return;
+    }
 
     const completion = await zai.chat.completions.create({
       messages: [
