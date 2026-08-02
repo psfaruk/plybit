@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
@@ -31,6 +31,24 @@ export const metadata: Metadata = {
     title: "OTC Binary Signals",
     description: "Real-time OTC market binary signal app with 6 weighted analysis engines.",
   },
+};
+
+// ── Viewport configuration ───────────────────────────────────────────────────
+// CRITICAL for mobile: without `interactiveWidget=resizes-content`, mobile
+// browsers (esp. Android Chrome) resize the LAYOUT viewport when the keyboard
+// opens, pushing the entire app upward. With `resizes-content`, only the
+// visual viewport is affected and the layout stays stable.
+//
+// `maximumScale=1` + `userScalable=false` prevents accidental zoom on input
+// focus (iOS Safari quirk). `viewportFit=cover` lets us use safe-area insets
+// on notched devices.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+  interactiveWidget: 'resizes-content',
 };
 
 export default function RootLayout({

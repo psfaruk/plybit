@@ -87,10 +87,93 @@ export function db(): Database {
       CREATE INDEX IF NOT EXISTS idx_agent_ts ON AgentAction(timestamp);
       CREATE INDEX IF NOT EXISTS idx_agent_scope ON AgentAction(scope);
       CREATE INDEX IF NOT EXISTS idx_agent_actionType ON AgentAction(actionType);
+
+      -- EngineWeights: persistent per-pair module weights (managed by AI agent).
+      -- The blender reads from this table; falls back to OTC_DEFAULT_WEIGHTS
+      -- when no row exists for a pair.
+      CREATE TABLE IF NOT EXISTS EngineWeights (
+        id TEXT PRIMARY KEY,
+        pair TEXT NOT NULL,
+        module TEXT NOT NULL,
+        weight REAL NOT NULL,
+        updatedAt INTEGER NOT NULL,
+        UNIQUE(pair, module)
+      );
+      CREATE INDEX IF NOT EXISTS idx_weights_pair ON EngineWeights(pair);
+
+      -- PairCooldowns: temporary per-pair signal cooldown (managed by AI agent).
+      -- The signal generator checks this table; if a pair has an active cooldown,
+      -- signals are still GENERATED but flagged with a 'COOLDOWN' marker so the
+      -- user can see the agent's reasoning. Signals are NEVER blocked.
+      CREATE TABLE IF NOT EXISTS PairCooldowns (
+        id TEXT PRIMARY KEY,
+        pair TEXT NOT NULL,
+        reason TEXT,
+        startedAt INTEGER NOT NULL,
+        expiresAt INTEGER NOT NULL,
+        active INTEGER DEFAULT 1
+      );
+      CREATE INDEX IF NOT EXISTS idx_cooldown_pair_active ON PairCooldowns(pair, active);
+      CREATE INDEX IF NOT EXISTS idx_cooldown_expires ON PairCooldowns(expiresAt);
     `);
     console.log(`[db] Opened ${DB_PATH}`);
   }
   return _db!;
+}
+
+// ── EngineWeights helpers ───────────────────────────────────────────────────
+export function getEngineWeights(pair: string): Record<string, number> | null {
+  const rows = db().query(
+    `SELECT module, weight FROM EngineWeights WHERE pair = ?`
+  ).all(pair) as { module: string; weight: number }[];
+  if (rows.length === 0) return null;
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.module] = r.weight;
+  return out;
+}
+
+export function setEngineWeight(pair: string, module: string, weight: number): void {
+  const id = `${pair}-${module}`;
+  const now = Math.floor(Date.now() / 1000);
+  db().query(
+    `INSERT OR REPLACE INTO EngineWeights (id, pair, module, weight, updatedAt)
+     VALUES (?, ?, ?, ?, ?)`
+  ).run(id, pair, module, weight, now);
+}
+
+export function getAllEngineWeights(): { pair: string; module: string; weight: number; updatedAt: number }[] {
+  return db().query(
+    `SELECT pair, module, weight, updatedAt FROM EngineWeights ORDER BY pair, module`
+  ).all() as any[];
+}
+
+// ── PairCooldowns helpers ───────────────────────────────────────────────────
+// NOTE: cooldowns do NOT block signals — they mark signals so the user knows
+// the agent's reasoning. Signal generation always continues.
+export function getActiveCooldown(pair: string): { reason: string; expiresAt: number } | null {
+  const now = Math.floor(Date.now() / 1000);
+  const row = db().query(
+    `SELECT reason, expiresAt FROM PairCooldowns
+     WHERE pair = ? AND active = 1 AND expiresAt > ?
+     ORDER BY expiresAt DESC LIMIT 1`
+  ).get(pair, now) as { reason: string; expiresAt: number } | null;
+  return row || null;
+}
+
+export function setPairCooldown(pair: string, reason: string, durationSec: number): void {
+  const id = `${pair}-${Math.floor(Date.now() / 1000)}`;
+  const now = Math.floor(Date.now() / 1000);
+  db().query(
+    `INSERT INTO PairCooldowns (id, pair, reason, startedAt, expiresAt, active)
+     VALUES (?, ?, ?, ?, ?, 1)`
+  ).run(id, pair, reason, now, now + durationSec);
+}
+
+export function clearExpiredCooldowns(): void {
+  const now = Math.floor(Date.now() / 1000);
+  db().query(
+    `UPDATE PairCooldowns SET active = 0 WHERE expiresAt <= ?`
+  ).run(now);
 }
 
 export { DB_PATH };

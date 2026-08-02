@@ -118,5 +118,23 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Prevent the page from bouncing/scrolling when an input is focused and
+       the mobile keyboard opens. Combined with the `interactiveWidget:
+       resizes-content` viewport meta, this keeps the app layout stable. */
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Prevent iOS Safari from auto-zooming when an input with font-size < 16px
+     is focused. All inputs in the app should be at least 16px. */
+  input, select, textarea {
+    font-size: 16px;
+  }
+  /* On mobile, prevent the browser from scrolling the focused input into view
+     aggressively (which pushes the whole layout up). */
+  @media (max-width: 768px) {
+    html, body {
+      height: 100%;
+      overflow: auto;
+    }
   }
 }

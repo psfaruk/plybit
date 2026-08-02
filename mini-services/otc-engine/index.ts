@@ -20,7 +20,7 @@ import { OTC_SYMBOLS } from './src/pairs';
 import type { Candle, Tick } from './src/types';
 import { randomUUID } from 'crypto';
 import { detectAlgorithm, getAllCurrentDetections, type DetectionResult } from './src/algorithm-detector';
-import { startAgent, stopAgent } from './src/ai-agent';
+import { startAgent, stopAgent, checkTokenHealth } from './src/ai-agent';
 import { writeEnvKey } from './src/paths';
 
 const PORT = Number(process.env.MINI_SERVICE_PORT) || 3003;
@@ -174,6 +174,16 @@ async function boot() {
 
   // Start the embedded AI agent (24/7 GLM 5.2 analyzer)
   startAgent(io);
+
+  // Phase 3: Token health check — every 60s, check if feed is disconnected.
+  // If so, log a TOKEN_ALERT via the agent so the user sees it in the agent tab.
+  setInterval(() => {
+    try {
+      checkTokenHealth(feedStatus);
+    } catch (e: any) {
+      console.error('[token-health] error:', e.message);
+    }
+  }, 60_000);
 }
 
 // ── Algorithm Detection — runs on every candle close, persists transitions ──

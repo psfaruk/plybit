@@ -14,9 +14,16 @@ import ZAI from 'z-ai-web-dev-sdk';
 import { Database } from 'bun:sqlite';
 import { randomUUID } from 'crypto';
 import { getDbPath } from './paths';
+import { setEngineWeight, setPairCooldown, clearExpiredCooldowns, getAllEngineWeights } from './store';
+import { clearWeightCache, OTC_DEFAULT_WEIGHTS } from './otc-config';
 
 const DB_PATH = getDbPath();
 const ANALYSIS_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const DAILY_REPORT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const STREAK_LOSS_THRESHOLD = 3; // 3 consecutive losses triggers a cooldown
+const COOLDOWN_DURATION_SEC = 30 * 60; // 30 minutes
+const MAX_WEIGHT = 2.0;
+const MIN_WEIGHT = 0.1;
 
 let zaiInstance: any = null;
 let agentTimer: Timer | null = null;
@@ -31,7 +38,7 @@ async function getZai() {
 }
 
 export function logAgentAction(params: {
-  actionType: 'ANALYZE' | 'ADJUST_WEIGHT' | 'DISABLE_PAIR' | 'ALERT' | 'INSIGHT' | 'FIX_APPLIED';
+  actionType: 'ANALYZE' | 'ADJUST_WEIGHT' | 'DISABLE_PAIR' | 'ALERT' | 'INSIGHT' | 'FIX_APPLIED' | 'COOLDOWN_PAIR' | 'DAILY_REPORT' | 'TOKEN_ALERT';
   scope: string;
   summary: string;
   details: any;
@@ -231,23 +238,131 @@ function parseAgentResponse(raw: string): any | null {
 }
 
 function applyAction(action: any): boolean {
-  if (!action.autoApply) return false;
   const { actionType, scope, summary, reason, details } = action;
 
-  if (actionType === 'ADJUST_WEIGHT') {
+  // ── ADJUST_WEIGHT: actually persist weight to DB + clear cache ──────────
+  // Scope format: "MODULE:<module_name>" (applies to all pairs) or
+  //               "PAIR:<pair>:MODULE:<module_name>" (specific pair+module)
+  if (actionType === 'ADJUST_WEIGHT' && action.autoApply) {
+    try {
+      // Parse scope
+      const moduleMatch = scope.match(/MODULE:(\w+)/);
+      const pairMatch = scope.match(/PAIR:([\w-]+)/);
+      const moduleName = moduleMatch?.[1];
+      const newWeight = details?.newWeight ?? details?.weight;
+
+      if (!moduleName || typeof newWeight !== 'number') {
+        logAgentAction({
+          actionType: 'INSIGHT',
+          scope,
+          summary: `ADJUST_WEIGHT skipped — missing module name or weight in details`,
+          details: { reason, ...details },
+          severity: 'warning',
+        });
+        return false;
+      }
+
+      // Clamp weight to safe range
+      const clampedWeight = Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, newWeight));
+
+      if (pairMatch) {
+        // Per-pair weight
+        const pair = pairMatch[1];
+        setEngineWeight(pair, moduleName, clampedWeight);
+        clearWeightCache();
+        logAgentAction({
+          actionType: 'ADJUST_WEIGHT',
+          scope,
+          summary: `Weight for ${pair} → ${moduleName} set to ${clampedWeight}`,
+          details: { reason, module: moduleName, pair, oldWeight: details?.oldWeight, newWeight: clampedWeight },
+          severity: 'info',
+          autoApplied: true,
+        });
+      } else {
+        // Global weight — apply to ALL pairs in OTC_PAIRS via DB
+        // (We set DB rows for each pair; blender reads DB first, then falls back)
+        const { OTC_SYMBOLS } = require('./pairs');
+        for (const pair of OTC_SYMBOLS) {
+          setEngineWeight(pair, moduleName, clampedWeight);
+        }
+        clearWeightCache();
+        logAgentAction({
+          actionType: 'ADJUST_WEIGHT',
+          scope,
+          summary: `Global weight for ${moduleName} set to ${clampedWeight} (applied to ${OTC_SYMBOLS.length} pairs)`,
+          details: { reason, module: moduleName, newWeight: clampedWeight, appliedTo: OTC_SYMBOLS.length },
+          severity: 'info',
+          autoApplied: true,
+        });
+      }
+      return true;
+    } catch (e: any) {
+      logAgentAction({
+        actionType: 'INSIGHT',
+        scope,
+        summary: `ADJUST_WEIGHT failed: ${e.message}`,
+        details: { error: e.message, reason, ...details },
+        severity: 'warning',
+      });
+      return false;
+    }
+  }
+
+  // ── COOLDOWN_PAIR: set a temporary cooldown (does NOT block signals) ────
+  // Signals will still be generated, but flagged with the cooldown reason.
+  if (actionType === 'COOLDOWN_PAIR' && action.autoApply) {
+    try {
+      const pairMatch = scope.match(/PAIR:([\w-]+)/);
+      const pair = pairMatch?.[1];
+      const durationSec = details?.durationSec ?? COOLDOWN_DURATION_SEC;
+      if (!pair) {
+        logAgentAction({
+          actionType: 'INSIGHT',
+          scope,
+          summary: `COOLDOWN_PAIR skipped — missing pair in scope`,
+          details: { reason, ...details },
+          severity: 'warning',
+        });
+        return false;
+      }
+      setPairCooldown(pair, reason || summary, durationSec);
+      logAgentAction({
+        actionType: 'COOLDOWN_PAIR',
+        scope,
+        summary: `Cooldown set for ${pair} (${Math.floor(durationSec / 60)}min): ${reason}`,
+        details: { reason, pair, durationSec, expiresAt: Math.floor(Date.now() / 1000) + durationSec },
+        severity: 'warning',
+        autoApplied: true,
+      });
+      return true;
+    } catch (e: any) {
+      logAgentAction({
+        actionType: 'INSIGHT',
+        scope,
+        summary: `COOLDOWN_PAIR failed: ${e.message}`,
+        details: { error: e.message, reason, ...details },
+        severity: 'warning',
+      });
+      return false;
+    }
+  }
+
+  // ── Other action types (ALERT, INSIGHT, DISABLE_PAIR) — log only ───────
+  // DISABLE_PAIR is logged but NOT applied (user requirement: never disable signals)
+  if (actionType === 'DISABLE_PAIR') {
     logAgentAction({
-      actionType: 'ADJUST_WEIGHT',
+      actionType: 'INSIGHT',  // Log as INSIGHT since we don't actually disable
       scope,
-      summary,
-      details: { reason, ...details },
-      severity: 'info',
-      autoApplied: true,
+      summary: `[Recommendation only] ${summary} (signals NOT disabled per user policy)`,
+      details: { reason, ...details, note: 'Pair disabling is disabled by user policy — signals always run' },
+      severity: 'warning',
+      autoApplied: false,
     });
-    return true;
+    return false;
   }
 
   logAgentAction({
-    actionType: actionType === 'DISABLE_PAIR' ? 'DISABLE_PAIR' : 'INSIGHT',
+    actionType: actionType === 'COOLDOWN_PAIR' ? 'COOLDOWN_PAIR' : 'INSIGHT',
     scope,
     summary,
     details: { reason, ...details },
@@ -259,6 +374,13 @@ function applyAction(action: any): boolean {
 
 async function runAnalysisCycle() {
   try {
+    // Clean up expired cooldowns first
+    clearExpiredCooldowns();
+
+    // Phase 2: Streak detection — auto-set cooldown on 3+ consecutive losses
+    // (signals are NOT blocked, just flagged with cooldown reason)
+    await detectLossStreaks();
+
     const state = collectDBState();
     if (state.totals.totalSignals < 5) {
       // Not enough data yet — log a one-time INSIGHT so the user sees the agent is alive
@@ -327,6 +449,178 @@ async function runAnalysisCycle() {
   }
 }
 
+// ── Phase 2: Loss streak detection ──────────────────────────────────────────
+// For each pair, check the last N signals. If 3+ consecutive LOSS, set a
+// 30-minute cooldown (signals still generate, but flagged with cooldown reason).
+// This helps the user identify pairs that are currently underperforming without
+// blocking signals entirely.
+async function detectLossStreaks(): Promise<void> {
+  try {
+    const { OTC_SYMBOLS } = require('./pairs');
+    const now = Math.floor(Date.now() / 1000);
+
+    // Collect all data in one readonly connection, then close it before writing
+    const pairsNeedingCooldown: { pair: string; lastResults: string[] }[] = [];
+
+    const d = new Database(DB_PATH, { readonly: true });
+    for (const pair of OTC_SYMBOLS) {
+      // Get last 5 decided signals for this pair
+      const recent = d.query(
+        `SELECT result FROM SignalLog
+         WHERE pair = ? AND result IN ('WIN', 'LOSS')
+         ORDER BY timestamp DESC LIMIT 5`
+      ).all(pair) as { result: string }[];
+
+      if (recent.length < STREAK_LOSS_THRESHOLD) continue;
+
+      // Check if the last N are all LOSS
+      const lastN = recent.slice(0, STREAK_LOSS_THRESHOLD);
+      const allLoss = lastN.every(r => r.result === 'LOSS');
+      if (!allLoss) continue;
+
+      // Check if there's already an active cooldown for this pair
+      const existing = d.query(
+        `SELECT expiresAt FROM PairCooldowns
+         WHERE pair = ? AND active = 1 AND expiresAt > ?
+         ORDER BY expiresAt DESC LIMIT 1`
+      ).get(pair, now) as { expiresAt: number } | null;
+
+      if (existing) continue;  // already on cooldown
+
+      pairsNeedingCooldown.push({ pair, lastResults: lastN.map(r => r.result) });
+    }
+    d.close();
+
+    // Now apply cooldowns (separate write connection per pair)
+    for (const { pair, lastResults } of pairsNeedingCooldown) {
+      setPairCooldown(pair, `${STREAK_LOSS_THRESHOLD} consecutive losses`, COOLDOWN_DURATION_SEC);
+      logAgentAction({
+        actionType: 'COOLDOWN_PAIR',
+        scope: `PAIR:${pair}`,
+        summary: `Auto-cooldown for ${pair}: ${STREAK_LOSS_THRESHOLD} consecutive losses in last 5 signals. Cooldown: ${COOLDOWN_DURATION_SEC / 60}min. Signals will continue but flagged.`,
+        details: {
+          pair,
+          streak: STREAK_LOSS_THRESHOLD,
+          lastResults,
+          cooldownSec: COOLDOWN_DURATION_SEC,
+          note: 'Signals NOT blocked — only flagged for user awareness'
+        },
+        severity: 'warning',
+        autoApplied: true,
+      });
+    }
+  } catch (e: any) {
+    console.error('[agent] streak detection error:', e.message);
+  }
+}
+
+// ── Phase 3: Token health check ─────────────────────────────────────────────
+// Runs every minute (separate from the 5-min analysis cycle). If the feed is
+// disconnected, logs a TOKEN_ALERT so the user sees it in the agent tab.
+let lastTokenAlertTs = 0;
+const TOKEN_ALERT_COOLDOWN_SEC = 5 * 60; // don't spam — at most 1 alert per 5min
+
+export function checkTokenHealth(feedStatus: { mode: string; message?: string } | null): void {
+  if (!feedStatus || feedStatus.mode !== 'disconnected') return;
+  const now = Math.floor(Date.now() / 1000);
+  if (now - lastTokenAlertTs < TOKEN_ALERT_COOLDOWN_SEC) return;
+  lastTokenAlertTs = now;
+  logAgentAction({
+    actionType: 'TOKEN_ALERT',
+    scope: 'GLOBAL',
+    summary: `Quotex feed disconnected. Token may be expired. ${feedStatus.message ?? ''}`,
+    details: {
+      mode: feedStatus.mode,
+      message: feedStatus.message,
+      suggestion: 'Open the app and click "Refresh Token" to paste a fresh Quotex session token'
+    },
+    severity: 'critical',
+    autoApplied: false,
+  });
+}
+
+// ── Phase 3: Daily report ───────────────────────────────────────────────────
+// Runs once every 24h. Summarizes the last 24h of signals.
+let lastDailyReportTs = 0;
+
+async function maybeRunDailyReport(): Promise<void> {
+  const now = Math.floor(Date.now() / 1000);
+  if (lastDailyReportTs > 0 && now - lastDailyReportTs < DAILY_REPORT_INTERVAL_MS) return;
+  lastDailyReportTs = now;
+
+  try {
+    const since = now - 24 * 60 * 60;
+    const d = new Database(DB_PATH, { readonly: true });
+
+    const totals = d.query(
+      `SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN result='WIN' THEN 1 ELSE 0 END) as wins,
+        SUM(CASE WHEN result='LOSS' THEN 1 ELSE 0 END) as losses,
+        SUM(CASE WHEN result='PENDING' THEN 1 ELSE 0 END) as pending
+       FROM SignalLog WHERE timestamp >= ?`
+    ).get(since) as any;
+
+    const byPair = d.query(
+      `SELECT pair,
+        COUNT(*) as total,
+        SUM(CASE WHEN result='WIN' THEN 1 ELSE 0 END) as wins,
+        SUM(CASE WHEN result='LOSS' THEN 1 ELSE 0 END) as losses
+       FROM SignalLog WHERE timestamp >= ?
+       GROUP BY pair ORDER BY total DESC`
+    ).all(since) as any[];
+
+    d.close();
+
+    const total = totals?.total || 0;
+    const wins = totals?.wins || 0;
+    const losses = totals?.losses || 0;
+    const winRate = (wins + losses) > 0 ? (wins / (wins + losses) * 100).toFixed(1) : '0.0';
+
+    if (total === 0) return;  // no data yet
+
+    const bestPair = byPair.find(p => (p.wins + p.losses) >= 3);
+    const worstPair = [...byPair].reverse().find(p => (p.wins + p.losses) >= 3);
+
+    logAgentAction({
+      actionType: 'DAILY_REPORT',
+      scope: 'GLOBAL',
+      summary: `📊 24h Report: ${total} signals, ${wins}W/${losses}L, win rate ${winRate}%`,
+      details: {
+        period: '24h',
+        totalSignals: total,
+        wins,
+        losses,
+        pending: totals?.pending || 0,
+        winRate: parseFloat(winRate),
+        pairsCount: byPair.length,
+        bestPair: bestPair ? {
+          pair: bestPair.pair,
+          winRate: ((bestPair.wins / (bestPair.wins + bestPair.losses)) * 100).toFixed(1) + '%',
+          wins: bestPair.wins,
+          losses: bestPair.losses
+        } : null,
+        worstPair: worstPair ? {
+          pair: worstPair.pair,
+          winRate: ((worstPair.wins / (worstPair.wins + worstPair.losses)) * 100).toFixed(1) + '%',
+          wins: worstPair.wins,
+          losses: worstPair.losses
+        } : null,
+        allPairs: byPair.map(p => ({
+          pair: p.pair,
+          winRate: (p.wins + p.losses) > 0 ? ((p.wins / (p.wins + p.losses)) * 100).toFixed(1) + '%' : '—',
+          wins: p.wins,
+          losses: p.losses
+        }))
+      },
+      severity: total > 0 && parseFloat(winRate) < 50 ? 'warning' : 'info',
+      autoApplied: false,
+    });
+  } catch (e: any) {
+    console.error('[agent] daily report error:', e.message);
+  }
+}
+
 export function startAgent(io: any) {
   ioRef = io;
   console.log('[agent] 🤖 AI Agent starting — analysis every 5 minutes (GLM 5.2)');
@@ -335,17 +629,32 @@ export function startAgent(io: any) {
   logAgentAction({
     actionType: 'INSIGHT',
     scope: 'GLOBAL',
-    summary: 'AI Agent (GLM 5.2) booted. First analysis runs in 30s, then every 5 minutes.',
-    details: { interval: '5m', firstRunIn: '30s', model: 'GLM 5.2' },
+    summary: 'AI Agent (GLM 5.2) booted. First analysis runs in 30s, then every 5 minutes. Streak detection + token health check + daily report active.',
+    details: {
+      interval: '5m',
+      firstRunIn: '30s',
+      model: 'GLM 5.2',
+      features: [
+        'GLM analysis every 5min',
+        'Loss streak detection (3 consecutive → 30min cooldown, signals NOT blocked)',
+        'Token health check every 1min (alerts on disconnect)',
+        'Daily report every 24h',
+        'Real weight adjustments via EngineWeights DB table',
+      ]
+    },
     severity: 'info',
   });
 
+  // First analysis cycle after 30s
   setTimeout(() => {
     runAnalysisCycle().catch(e => console.error('[agent] first cycle error:', e.message));
+    maybeRunDailyReport().catch(e => console.error('[agent] first daily report error:', e.message));
   }, 30_000);
 
+  // Main analysis loop (every 5 min)
   agentTimer = setInterval(() => {
     runAnalysisCycle().catch(e => console.error('[agent] cycle error:', e.message));
+    maybeRunDailyReport().catch(e => console.error('[agent] daily report error:', e.message));
   }, ANALYSIS_INTERVAL_MS);
 
   if (agentTimer.unref) agentTimer.unref();

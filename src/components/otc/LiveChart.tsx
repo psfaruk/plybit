@@ -103,7 +103,13 @@ export function LiveChart({ pair, ticks, feedMode, cachedCandles, onRequestCandl
   }, [cachedCandles, pair, candles.length]);
 
   // ── Chart lifecycle: DESTROY + RECREATE on every pair change ───────────────
+  // CRITICAL FIX: track whether this effect is still mounted so async retries
+  // (setTimeout for createChart) and RAF loops don't try to update a destroyed
+  // chart. Without this, pair switching could crash the chart.
   useEffect(() => {
+    let isMounted = true;
+    let createChartRetryTimer: ReturnType<typeof setTimeout> | null = null;
+
     currentPairRef.current = pair;
 
     // HARD reset everything
@@ -117,8 +123,6 @@ export function LiveChart({ pair, ticks, feedMode, cachedCandles, onRequestCandl
     liveCandleRef.current = null;
     historyLoadedRef.current = false;
 
-    // Use a ref-based flag instead of synchronous setState to avoid lint error.
-    // The actual setCandles([]) will happen via the fetch callback.
     if (!pair) {
       return;
     }
@@ -136,91 +140,98 @@ export function LiveChart({ pair, ticks, feedMode, cachedCandles, onRequestCandl
 
     // Create new chart (after a microtask so DOM is clean)
     const createChart = () => {
+      if (!isMounted) return;  // pair changed while waiting
       if (!containerRef.current || !window.LightweightCharts) {
-        setTimeout(createChart, 50);
+        createChartRetryTimer = setTimeout(createChart, 50);
         return;
       }
       // Guard: pair might have changed while waiting
       if (currentPairRef.current !== pair) return;
 
-      const chart = window.LightweightCharts.createChart(containerRef.current, {
-        layout: {
-          background: { type: 'solid', color: '#1e222d' },
-          textColor: '#787b86',
-          fontSize: 11,
-        },
-        grid: {
-          vertLines: { color: 'transparent' },
-          horzLines: { color: '#2a2e39' },
-        },
-        rightPriceScale: {
-          borderColor: '#2a2e39',
-          scaleMargins: { top: 0.1, bottom: 0.1 },
-        },
-        timeScale: {
-          borderColor: '#2a2e39',
-          timeVisible: true,
-          secondsVisible: false,
-          rightOffset: 3,
-          shiftVisibleRangeOnNewBar: false,
-        },
-        crosshair: {
-          mode: 1,
-          vertLine: { color: '#5d606b', width: 1, style: 2, labelBackgroundColor: '#363a45' },
-          horzLine: { color: '#5d606b', width: 1, style: 2, labelBackgroundColor: '#363a45' },
-        },
-        handleScroll: true,
-        handleScale: true,
-      });
+      try {
+        const chart = window.LightweightCharts.createChart(containerRef.current, {
+          layout: {
+            background: { type: 'solid', color: '#1e222d' },
+            textColor: '#787b86',
+            fontSize: 11,
+          },
+          grid: {
+            vertLines: { color: 'transparent' },
+            horzLines: { color: '#2a2e39' },
+          },
+          rightPriceScale: {
+            borderColor: '#2a2e39',
+            scaleMargins: { top: 0.1, bottom: 0.1 },
+          },
+          timeScale: {
+            borderColor: '#2a2e39',
+            timeVisible: true,
+            secondsVisible: false,
+            rightOffset: 3,
+            shiftVisibleRangeOnNewBar: false,
+          },
+          crosshair: {
+            mode: 1,
+            vertLine: { color: '#5d606b', width: 1, style: 2, labelBackgroundColor: '#363a45' },
+            horzLine: { color: '#5d606b', width: 1, style: 2, labelBackgroundColor: '#363a45' },
+          },
+          handleScroll: true,
+          handleScale: true,
+        });
 
-      const series = chart.addCandlestickSeries({
-        upColor: '#089981',
-        downColor: '#f23645',
-        borderUpColor: '#089981',
-        borderDownColor: '#f23645',
-        wickUpColor: '#089981',
-        wickDownColor: '#f23645',
-      });
+        const series = chart.addCandlestickSeries({
+          upColor: '#089981',
+          downColor: '#f23645',
+          borderUpColor: '#089981',
+          borderDownColor: '#f23645',
+          wickUpColor: '#089981',
+          wickDownColor: '#f23645',
+        });
 
-      chartRef.current = chart;
-      seriesRef.current = series;
+        chartRef.current = chart;
+        seriesRef.current = series;
 
-      // Resize observer
-      const ro = new ResizeObserver(() => {
-        if (containerRef.current && chartRef.current) {
-          chartRef.current.applyOptions({
-            width: containerRef.current.clientWidth,
-            height: containerRef.current.clientHeight,
-          });
+        // Resize observer
+        const ro = new ResizeObserver(() => {
+          if (containerRef.current && chartRef.current) {
+            try {
+              chartRef.current.applyOptions({
+                width: containerRef.current.clientWidth,
+                height: containerRef.current.clientHeight,
+              });
+            } catch {}
+          }
+        });
+        ro.observe(containerRef.current);
+
+        // Store cleanup on the chart object
+        (chart as any)._cleanup = () => {
+          ro.disconnect();
+        };
+
+        // Use cached candles if available (instant pair switching — no refetch).
+        // Otherwise, fetch from REST API as fallback.
+        if (cachedCandles && cachedCandles.length > 0) {
+          setCandles(cachedCandles);
+        } else {
+          fetchCandles(pair, true);
         }
-      });
-      ro.observe(containerRef.current);
-
-      // Store cleanup on the chart object
-      (chart as any)._cleanup = () => {
-        ro.disconnect();
-      };
-
-      // Use cached candles if available (instant pair switching — no refetch).
-      // Otherwise, fetch from REST API as fallback.
-      if (cachedCandles && cachedCandles.length > 0) {
-        setCandles(cachedCandles);
-      } else {
-        fetchCandles(pair, true);
+      } catch (e) {
+        console.error('[chart] createChart error:', e);
       }
     };
     createChart();
 
     // Refresh history periodically from REST (keeps DB-persisted candles fresh).
-    // The upstream cache + live ticks handle real-time; this is just a periodic
-    // sync to catch any candles that may have been missed.
     const refreshId = setInterval(() => {
-      if (currentPairRef.current === pair) {
+      if (isMounted && currentPairRef.current === pair) {
         fetchCandles(pair, false);
       }
     }, 60000);
 
     return () => {
+      isMounted = false;
+      if (createChartRetryTimer) clearTimeout(createChartRetryTimer);
       clearInterval(refreshId);
       rafActiveRef.current = false;
       if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
@@ -242,7 +253,13 @@ export function LiveChart({ pair, ticks, feedMode, cachedCandles, onRequestCandl
   useEffect(() => {
     rafLoopRef.current = (ts: number) => {
       if (!rafActiveRef.current) return;
-      if (rafTimeRef.current > 0 && rafOpenRef.current > 0 && seriesRef.current) {
+      // Guard: chart/series might have been destroyed by a pair switch.
+      // Always re-check before calling seriesRef.current.update().
+      if (!seriesRef.current || !chartRef.current) {
+        rafActiveRef.current = false;
+        return;
+      }
+      if (rafTimeRef.current > 0 && rafOpenRef.current > 0) {
         const elapsed = ts - tweenStartRef.current;
         const progress = Math.min(elapsed / TWEEN_MS, 1.0);
         const eased = easeOutCubic(progress);
@@ -262,6 +279,10 @@ export function LiveChart({ pair, ticks, feedMode, cachedCandles, onRequestCandl
 
         if (safeHigh > 0 && safeLow > 0 && safeClose > 0) {
           try {
+            if (!seriesRef.current) {  // re-check inside try (chart may have been destroyed)
+              rafActiveRef.current = false;
+              return;
+            }
             seriesRef.current.update({
               time: rafTimeRef.current as any,
               open: rafOpenRef.current,
@@ -283,7 +304,9 @@ export function LiveChart({ pair, ticks, feedMode, cachedCandles, onRequestCandl
         rafActiveRef.current = false;
         return;
       }
-      rafIdRef.current = requestAnimationFrame((t) => rafLoopRef.current(t));
+      if (rafActiveRef.current) {
+        rafIdRef.current = requestAnimationFrame((t) => rafLoopRef.current(t));
+      }
     };
   }, []);
 
@@ -435,8 +458,9 @@ export function LiveChart({ pair, ticks, feedMode, cachedCandles, onRequestCandl
   //   C. DB has fresh candles + tick arrives in same minute → update the forming candle
   //   D. Minute boundary crossed → close previous forming candle, start a new one
   useEffect(() => {
-    if (!seriesRef.current) return;
+    if (!seriesRef.current || !chartRef.current) return;  // chart may have been destroyed
     if (livePrice <= 0) return;
+    if (!Number.isFinite(livePrice)) return;
     if (now === 0) return;
     // Don't gate on candles.length or historyLoadedRef — even with zero candles
     // we must show the live forming candle so the user sees data flowing.
@@ -445,7 +469,10 @@ export function LiveChart({ pair, ticks, feedMode, cachedCandles, onRequestCandl
     const currentMinuteBucket = Math.floor(nowSec / 60) * 60;
 
     const lastClosed = candles.length > 0 ? candles[candles.length - 1] : null;
-    const lastClosedTime = lastClosed?.time ?? 0;
+    // Sanitize lastClosed — if it has invalid data, treat as null
+    const safeLastClosed = (lastClosed && Number.isFinite(lastClosed.time) && lastClosed.time > 0
+      && Number.isFinite(lastClosed.open) && lastClosed.open > 0)
+      ? lastClosed : null;
 
     // If we have NO liveCandleRef yet, or the existing one is from a PREVIOUS
     // minute, we need to start a new forming candle at the current minute boundary.
@@ -455,10 +482,10 @@ export function LiveChart({ pair, ticks, feedMode, cachedCandles, onRequestCandl
       let seedOpen = livePrice;
       let seedHigh = livePrice;
       let seedLow = livePrice;
-      if (lastClosed && lastClosed.time === currentMinuteBucket) {
-        seedOpen = lastClosed.open;
-        seedHigh = Math.max(lastClosed.high, livePrice);
-        seedLow = Math.min(lastClosed.low, livePrice);
+      if (safeLastClosed && safeLastClosed.time === currentMinuteBucket) {
+        seedOpen = safeLastClosed.open;
+        seedHigh = Math.max(safeLastClosed.high, livePrice);
+        seedLow = Math.min(safeLastClosed.low, livePrice);
       }
 
       const newCandle = {

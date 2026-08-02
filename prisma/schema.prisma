@@ -91,3 +91,26 @@ model AgentAction {
   @@index([scope])
   @@index([actionType])
 }
+
+model EngineWeights {
+  id        String   @id @default(cuid())
+  pair      String
+  module    String
+  weight    Float
+  updatedAt Int
+
+  @@unique([pair, module])
+  @@index([pair])
+}
+
+model PairCooldowns {
+  id         String   @id @default(cuid())
+  pair       String
+  reason     String
+  startedAt  Int
+  expiresAt  Int
+  active     Boolean  @default(true)
+
+  @@index([pair, active])
+  @@index([expiresAt])
+}
