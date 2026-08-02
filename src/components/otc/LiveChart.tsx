@@ -347,79 +347,105 @@ export function LiveChart({ pair, ticks, feedMode }: LiveChartProps) {
   }, [candles, pair]);
 
   // ── Live tick handler: update the forming candle ───────────────────────────
-  // KEY FIX: the wick (high/low) is always included in the update —
-  // previously only close was animated, so high/low stayed at open until close.
+  // This handler is responsible for taking each live tick and turning it into
+  // a visual candle update on the chart.
+  //
+  // KEY INSIGHT: the forming candle must ALWAYS live at the CURRENT minute
+  // boundary (Math.floor(nowSec/60)*60), NOT at lastClosed.time + 60.
+  // If the DB has stale candles (e.g. from hours ago), using lastClosed.time + 60
+  // would create candles at wrong timestamps far off-screen.
+  //
+  // Cases handled:
+  //   A. DB empty + tick arrives → create a forming candle at current minute boundary
+  //      AND seed chart with this single candle so the user sees something.
+  //   B. DB has stale candles + tick arrives → same as A (forming candle at current minute)
+  //   C. DB has fresh candles + tick arrives in same minute → update the forming candle
+  //   D. Minute boundary crossed → close previous forming candle, start a new one
   useEffect(() => {
-    if (!seriesRef.current || livePrice <= 0 || candles.length === 0) return;
-    if (!historyLoadedRef.current) return;
+    if (!seriesRef.current) return;
+    if (livePrice <= 0) return;
     if (now === 0) return;
+    // Don't gate on candles.length or historyLoadedRef — even with zero candles
+    // we must show the live forming candle so the user sees data flowing.
 
-    const lastClosed = candles[candles.length - 1];
-    if (!lastClosed) return;
-
-    const currentMinuteBucket = lastClosed.time + 60;
     const nowSec = Math.floor(now / 1000);
+    const currentMinuteBucket = Math.floor(nowSec / 60) * 60;
 
-    if (nowSec >= currentMinuteBucket) {
-      // New candle
-      if (!liveCandleRef.current || liveCandleRef.current.time < currentMinuteBucket) {
-        const newCandle = {
-          time: currentMinuteBucket,
-          open: livePrice,
-          high: livePrice,
-          low: livePrice,
+    const lastClosed = candles.length > 0 ? candles[candles.length - 1] : null;
+    const lastClosedTime = lastClosed?.time ?? 0;
+
+    // If we have NO liveCandleRef yet, or the existing one is from a PREVIOUS
+    // minute, we need to start a new forming candle at the current minute boundary.
+    if (!liveCandleRef.current || liveCandleRef.current.time < currentMinuteBucket) {
+      // If the last DB candle is in the SAME minute as current time, adopt its
+      // open/high/low as the seed (so the chart shows continuity with history).
+      let seedOpen = livePrice;
+      let seedHigh = livePrice;
+      let seedLow = livePrice;
+      if (lastClosed && lastClosed.time === currentMinuteBucket) {
+        seedOpen = lastClosed.open;
+        seedHigh = Math.max(lastClosed.high, livePrice);
+        seedLow = Math.min(lastClosed.low, livePrice);
+      }
+
+      const newCandle = {
+        time: currentMinuteBucket,
+        open: seedOpen,
+        high: seedHigh,
+        low: seedLow,
+        close: livePrice,
+      };
+      liveCandleRef.current = newCandle;
+
+      try {
+        seriesRef.current.update({
+          time: currentMinuteBucket as any,
+          open: seedOpen,
+          high: seedHigh,
+          low: seedLow,
           close: livePrice,
-        };
-        liveCandleRef.current = newCandle;
-        // Immediately add the new candle to the chart (with full OHLC including wick)
+        });
+      } catch {}
+
+      // If historyLoadedRef is false (no DB candles), force a setData() with
+      // just this one candle so the chart shows it instead of "Waiting for candles…"
+      if (!historyLoadedRef.current) {
         try {
-          seriesRef.current.update({
+          seriesRef.current.setData([{
             time: currentMinuteBucket as any,
-            open: livePrice,
-            high: livePrice,
-            low: livePrice,
+            open: seedOpen,
+            high: seedHigh,
+            low: seedLow,
             close: livePrice,
-          });
+          }]);
+          historyLoadedRef.current = true;
+          candleDataRef.current = [{
+            time: currentMinuteBucket,
+            open: seedOpen,
+            high: seedHigh,
+            low: seedLow,
+            close: livePrice,
+          }];
+          chartRef.current?.timeScale().fitContent();
         } catch {}
-      } else if (liveCandleRef.current.time === currentMinuteBucket) {
-        // Update the forming candle — INCLUDE high/low so wick is visible
-        const updated = {
-          time: currentMinuteBucket,
-          open: liveCandleRef.current.open,
-          high: Math.max(liveCandleRef.current.high, livePrice),
-          low: Math.min(liveCandleRef.current.low, livePrice),
-          close: livePrice,
-        };
-        liveCandleRef.current = updated;
-        // Tween to the new values (high/low/close all animate)
-        startTween(updated);
       }
-    } else {
-      // Still in the last closed candle's minute — update it with live price
-      // This shows the wick forming in real-time on the CURRENT candle
-      if (liveCandleRef.current && liveCandleRef.current.time === lastClosed.time) {
-        const updated = {
-          time: lastClosed.time,
-          open: liveCandleRef.current.open,
-          high: Math.max(liveCandleRef.current.high, livePrice),
-          low: Math.min(liveCandleRef.current.low, livePrice),
-          close: livePrice,
-        };
-        liveCandleRef.current = updated;
-        startTween(updated);
-      } else {
-        // Initialize live candle from the last closed candle
-        const newLive = {
-          time: lastClosed.time,
-          open: lastClosed.open,
-          high: Math.max(lastClosed.high, livePrice),
-          low: Math.min(lastClosed.low, livePrice),
-          close: livePrice,
-        };
-        liveCandleRef.current = newLive;
-        startTween(newLive);
-      }
+      return;
     }
+
+    // Same minute as the existing forming candle — update OHLC
+    if (liveCandleRef.current.time === currentMinuteBucket) {
+      const updated = {
+        time: currentMinuteBucket,
+        open: liveCandleRef.current.open,
+        high: Math.max(liveCandleRef.current.high, livePrice),
+        low: Math.min(liveCandleRef.current.low, livePrice),
+        close: livePrice,
+      };
+      liveCandleRef.current = updated;
+      startTween(updated);
+    }
+    // Else: liveCandleRef.current.time > currentMinuteBucket — impossible (clock
+    // doesn't go backwards); ignore.
   }, [livePrice, now, candles, startTween]);
 
   // ── Price change indicator ─────────────────────────────────────────────────
@@ -461,14 +487,14 @@ export function LiveChart({ pair, ticks, feedMode }: LiveChartProps) {
       </div>
 
       <div ref={containerRef} className="flex-1 relative min-h-[280px]" style={{ background: '#1e222d' }}>
-        {loading && candles.length === 0 && (
+        {loading && candles.length === 0 && livePrice <= 0 && (
           <div className="absolute inset-0 flex items-center justify-center text-sm z-10" style={{ color: '#5d606b' }}>
             Loading…
           </div>
         )}
-        {candles.length === 0 && !loading && pair && (
+        {candles.length === 0 && !loading && pair && livePrice <= 0 && (
           <div className="absolute inset-0 flex items-center justify-center text-sm z-10" style={{ color: '#5d606b' }}>
-            Waiting for candles…
+            Waiting for live ticks…
           </div>
         )}
       </div>

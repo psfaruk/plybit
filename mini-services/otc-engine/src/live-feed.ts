@@ -532,7 +532,12 @@ export class QuotexOTCClient {
       // pyquotex format: {asset: "EURUSD_otc", price: 1.0850, time: 1234567890}
       // OR [[asset_id, time, price], ...]
       this.handleQuotesStream(data);
-    } else if (name === 'candle-generated' || name === 'candle' || name === 'candles' || name === 's_candle-generated') {
+    } else if (name === 'candles') {
+      // Historical candles response (plural) — payload is an array of candles
+      // for a single asset. Triggered by requestHistory().
+      this.handleCandlesHistory(data);
+    } else if (name === 'candle-generated' || name === 'candle' || name === 's_candle-generated') {
+      // Single live candle update (forming candle from broker)
       this.handleCandle(data);
     } else if (name === 'tick' || name === 'asset-price' || name === 'price' || name === 's_price') {
       this.handleTick(data);
@@ -540,11 +545,276 @@ export class QuotexOTCClient {
                name === 'instruments/list' || name === 'settings/list' ||
                name === 's_balance/list' || name === 's_drawing/load' ||
                name === 'orders/opened/list' || name === 'orders/closed/list' ||
-               name === 'history/list/v2' || name === 's_instruments/list') {
+               name === 's_instruments/list') {
       // ignore noisy non-candle events (these come right after auth)
+    } else if (name === 'history/list/v2') {
+      // Quotex's response to our get-candles request.
+      // Format: {asset:"EURUSD_otc", period:60, history:[[<unix_ts_float>, <price>, <flag>], ...]}
+      // This is TICK-level history (every price update), not candle-level.
+      // We aggregate it into 1-minute OHLC candles ourselves.
+      this.handleTickHistory(data);
+    } else if (name === 'get-candles' || name === 's_candles' || name === 's_get-candles' ||
+               name === 'candles/list' || name === 's_candles/list' || name === 'quoteHistory' ||
+               name === 's_history' || name === 'history/list') {
+      // Could be the response to our get-candles request in a non-binary form
+      console.log(`[live-feed] possible candles response (event: ${name}): ${JSON.stringify(data || {}).slice(0, 300)}`);
+      this.handleCandlesHistory(data);
     } else {
       // Log unknown events so we can see what Quotex is sending
       console.log(`[live-feed] event "${name}" data: ${JSON.stringify(data || {}).slice(0, 200)}`);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Historical candle fetching — sends get-candles request and parses response
+  // ────────────────────────────────────────────────────────────────────────────
+  // Quotex API (per pyquotex):
+  //   Send:    42["get-candles", {"asset":"EURUSD_otc","period":60,"count":50}]
+  //   Receive: 451-["candles", {"asset":"EURUSD_otc","data":[{time,open,close,min,max,volume}, ...]}]
+  //            (binary Socket.IO attachment because payload is large)
+  //
+  // The response is received via onMessage() → pendingBinaryEvent → handleEvent("candles", data)
+  // → handleCandlesHistory(data).
+  private requestHistory(asset: string, count: number = 50): void {
+    if (this.ws?.readyState !== WebSocket.OPEN) return;
+    if (!this.authed) return;
+    // Some Quotex versions use a nested body format, others use a flat payload.
+    // Send BOTH to maximise compatibility — Quotex ignores unknown fields.
+    const payload = {
+      asset,
+      period: TIMEFRAME_SEC,
+      count,
+    };
+    this.sendEvent('get-candles', payload);
+    console.log(`[live-feed] ↻ requesting ${count} historical candles for ${asset}`);
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Tick history aggregation — Quotex's "history/list/v2" event contains
+  // tick-level price history (every price update with sub-second timestamps).
+  // We aggregate this into 1-minute OHLC candles ourselves.
+  //
+  // Input format:
+  //   {
+  //     asset: "EURUSD_otc",
+  //     period: 60,
+  //     history: [[<unix_ts_float>, <price>, <flag>], ...]
+  //   }
+  // Output: 1-minute OHLC candles stored in rt.history + persisted to DB.
+  // ────────────────────────────────────────────────────────────────────────────
+  private handleTickHistory(data: any): void {
+    if (!data || typeof data !== 'object') return;
+    const asset = data.asset || data.instrument || data.pair;
+    const history: any[] = data.history || data.data || data.ticks || [];
+
+    if (!asset || !Array.isArray(history) || history.length === 0) {
+      console.warn('[live-feed] history/list/v2 response empty or missing asset/history');
+      return;
+    }
+
+    const symbol = fromQuotexAsset(asset);
+    const rt = this.runtimes.get(symbol);
+    if (!rt) return;
+
+    // Group ticks by 1-minute bucket, build OHLC.
+    // Each tick: [unix_ts_float, price, flag]
+    // The flag (0/1) appears to indicate direction (0=down, 1=up) but we
+    // don't use it — we compute OHLC from the price series directly.
+    const buckets = new Map<number, { open: number; high: number; low: number; close: number; volume: number }>();
+
+    for (const tick of history) {
+      if (!Array.isArray(tick) || tick.length < 2) continue;
+      const ts = Number(tick[0]);
+      const price = Number(tick[1]);
+      if (!Number.isFinite(ts) || !Number.isFinite(price) || price <= 0) continue;
+
+      const bucket = Math.floor(ts / TIMEFRAME_SEC) * TIMEFRAME_SEC;
+      const existing = buckets.get(bucket);
+      if (existing) {
+        existing.high = Math.max(existing.high, price);
+        existing.low = Math.min(existing.low, price);
+        existing.close = price;
+        existing.volume += 1;
+      } else {
+        buckets.set(bucket, {
+          open: price,
+          high: price,
+          low: price,
+          close: price,
+          volume: 1,
+        });
+      }
+    }
+
+    if (buckets.size === 0) {
+      console.warn(`[live-feed] no valid ticks in history for ${symbol}`);
+      return;
+    }
+
+    // Convert to sorted Candle array (ascending by time)
+    const parsed: Candle[] = Array.from(buckets.entries())
+      .map(([time, ohlc]) => ({ time, ...ohlc }))
+      .sort((a, b) => a.time - b.time);
+
+    // Merge into rt.history (dedupe by time)
+    const existingTimes = new Set(rt.history.map(c => c.time));
+    const currentTimes = new Set(rt.current ? [rt.current.time] : []);
+    const newCandles: Candle[] = [];
+    for (const c of parsed) {
+      if (!existingTimes.has(c.time) && !currentTimes.has(c.time)) {
+        rt.history.push(c);
+        newCandles.push(c);
+      }
+    }
+
+    // Trim to HISTORY_SIZE (keep most recent)
+    if (rt.history.length > HISTORY_SIZE) {
+      rt.history = rt.history.slice(rt.history.length - HISTORY_SIZE);
+    }
+
+    // Adopt the latest historical candle as the forming candle if it's newer
+    const lastHist = parsed[parsed.length - 1];
+    if (lastHist && (!rt.current || rt.current.time < lastHist.time)) {
+      rt.current = { ...lastHist };
+    }
+
+    // Emit closed-candle events for each new candle (so DB persists them)
+    const nowSec = Math.floor(Date.now() / 1000);
+    const currentMinute = Math.floor(nowSec / TIMEFRAME_SEC) * TIMEFRAME_SEC;
+    for (const c of newCandles) {
+      const closed = c.time < currentMinute;
+      this.candleCount++;
+      for (const h of this.candleHandlers) h(symbol, c, closed);
+    }
+
+    // Also emit a tick for the latest price so the UI updates
+    if (lastHist && lastHist.close > 0) {
+      rt.price = lastHist.close;
+      const tick: Tick = { pair: symbol, price: lastHist.close, ts: Date.now() };
+      for (const h of this.tickHandlers) h(tick);
+    }
+
+    console.log(`[live-feed] ✓ aggregated ${history.length} ticks into ${parsed.length} candles for ${symbol} (new: ${newCandles.length}, total in memory: ${rt.history.length})`);
+
+    if (this.authed) {
+      this.emitStatus('live');
+    }
+  }
+
+  // Parse the historical candles response and populate rt.history.
+  // Handles 3 known response shapes:
+  //   1. { asset: "EURUSD_otc", data: [{time,open,close,min,max,volume}, ...] }
+  //   2. { asset: "EURUSD_otc", candles: [...] }
+  //   3. [ {time,open,close,min,max,volume}, ... ] (asset inferred from request)
+  private handleCandlesHistory(data: any): void {
+    if (!data) return;
+
+    let asset: string | null = null;
+    let candlesRaw: any[] = [];
+
+    if (Array.isArray(data)) {
+      // Shape 3: bare array
+      candlesRaw = data;
+    } else if (data && typeof data === 'object') {
+      asset = data.asset || data.instrument || data.pair || null;
+      candlesRaw = data.data || data.candles || data.body || [];
+    }
+
+    if (!Array.isArray(candlesRaw) || candlesRaw.length === 0) {
+      console.warn('[live-feed] candles response empty or unrecognized shape:', JSON.stringify(data).slice(0, 200));
+      return;
+    }
+
+    if (!asset) {
+      console.warn('[live-feed] candles response missing asset field, cannot route');
+      return;
+    }
+
+    const symbol = fromQuotexAsset(asset);
+    const rt = this.runtimes.get(symbol);
+    if (!rt) return;
+
+    const parsed: Candle[] = [];
+    for (const c of candlesRaw) {
+      let candle: Candle | null = null;
+      if (Array.isArray(c) && c.length >= 5) {
+        // Tuple form: [time, open, close, high, low, volume]
+        candle = {
+          time: Number(c[0]),
+          open: Number(c[1]),
+          high: Number(c[3] ?? c[1]),
+          low: Number(c[4] ?? c[1]),
+          close: Number(c[2]),
+          volume: Number(c[5] ?? 0),
+        };
+      } else if (c && typeof c === 'object') {
+        candle = {
+          time: Number(c.time ?? c.at ?? c.openTime),
+          open: Number(c.open),
+          high: Number(c.max ?? c.high),
+          low: Number(c.min ?? c.low),
+          close: Number(c.close),
+          volume: Number(c.volume ?? 0),
+        };
+      }
+      if (candle && Number.isFinite(candle.time) && Number.isFinite(candle.open) && candle.open > 0) {
+        parsed.push(candle);
+      }
+    }
+
+    if (parsed.length === 0) {
+      console.warn(`[live-feed] no valid candles parsed for ${symbol}`);
+      return;
+    }
+
+    // Sort ascending by time (oldest first)
+    parsed.sort((a, b) => a.time - b.time);
+
+    // Merge into history (dedupe by time)
+    const existingTimes = new Set(rt.history.map(c => c.time));
+    const currentTimes = new Set(rt.current ? [rt.current.time] : []);
+    const newCandles: Candle[] = [];
+    for (const c of parsed) {
+      if (!existingTimes.has(c.time) && !currentTimes.has(c.time)) {
+        rt.history.push(c);
+        newCandles.push(c);
+      }
+    }
+
+    // Trim to HISTORY_SIZE (keep most recent)
+    if (rt.history.length > HISTORY_SIZE) {
+      rt.history = rt.history.slice(rt.history.length - HISTORY_SIZE);
+    }
+
+    // If the latest historical candle is more recent than rt.current,
+    // adopt it as the new forming candle (Quotex sends the in-progress one too).
+    const lastHist = parsed[parsed.length - 1];
+    if (lastHist && (!rt.current || rt.current.time < lastHist.time)) {
+      rt.current = { ...lastHist };
+    }
+
+    // Emit closed-candle events for each new historical candle so:
+    //   1. They get persisted to the DB (upsertCandle)
+    //   2. The signal-analysis pipeline can run on them
+    // We mark closed=true EXCEPT for the last one (which is the forming candle).
+    for (let i = 0; i < newCandles.length; i++) {
+      const c = newCandles[i];
+      if (!c) continue;
+      const isLast = (i === newCandles.length - 1);
+      // Only emit "closed" for candles that are NOT the current minute bucket
+      // (the current minute is the forming candle — don't persist as closed)
+      const nowSec = Math.floor(Date.now() / 1000);
+      const currentMinute = Math.floor(nowSec / TIMEFRAME_SEC) * TIMEFRAME_SEC;
+      const closed = c.time < currentMinute;
+      this.candleCount++;
+      for (const h of this.candleHandlers) h(symbol, c, closed);
+    }
+
+    console.log(`[live-feed] ✓ loaded ${parsed.length} historical candles for ${symbol} (new: ${newCandles.length}, total in memory: ${rt.history.length})`);
+
+    // Update status (refreshes tick/candle counters in the UI)
+    if (this.authed) {
+      this.emitStatus('live');
     }
   }
 
@@ -595,6 +865,13 @@ export class QuotexOTCClient {
     this.sendEvent('chart_notification/get', { asset, version: '1.0.0' });
     this.sendEvent('tick', {});
     this.subscribedAssets.add(asset);
+
+    // Fetch ~50 historical candles so the chart has immediate context.
+    // Without this, the chart is empty until ~1 minute of ticks accumulate
+    // (Quotex only sends live ticks, no pre-built candles on subscribe).
+    // Stagger requests slightly to avoid rate-limiting on 15 simultaneous pairs.
+    const delayMs = 200 + (this.subscribedAssets.size - 1) * 150;
+    setTimeout(() => this.requestHistory(asset, 50), delayMs);
   }
 
   private handleCandle(data: any): void {
