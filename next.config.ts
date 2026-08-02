@@ -1,12 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // NOT standalone — next start works with Bun, standalone server.js crashes
   typescript: {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
-  // Minimize build memory
   experimental: {
     workerThreads: false,
     cpus: 1,
