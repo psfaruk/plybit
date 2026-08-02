@@ -1,3 +1,0 @@
-{
-  "/api/candles/[pair]/route": "app/api/candles/[pair]/route.js"
-}
